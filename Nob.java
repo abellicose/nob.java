@@ -77,7 +77,6 @@ public class Nob {
     public static Path srcDir = Path.of("src/");
     public static String jarsDir = null;
     public static String classesDir = "classes/";
-    private static final Path NOBjarPath = Path.of("nob.jar");
     private static final String nobClassesDir = ".nob/";
 
     private static Path srcPath() {
@@ -268,10 +267,11 @@ public class Nob {
             System.exit(1);
         }
 
+        Path buildJarPath = Path.of(buildClassName + ".jar");
         // Check if Needs jar Needs Building
         long mTimeSrc = Long.MAX_VALUE;
         long mTimeJar = 0;
-        boolean jarExists = Files.exists(NOBjarPath);
+        boolean jarExists = Files.exists(buildJarPath);
 
         try {
             mTimeSrc = Files.getLastModifiedTime(buildFile).toMillis();
@@ -283,15 +283,13 @@ public class Nob {
 
         if (jarExists) {
             try {
-                mTimeJar = Files.getLastModifiedTime(NOBjarPath).toMillis();
+                mTimeJar = Files.getLastModifiedTime(buildJarPath).toMillis();
             } catch (Exception e) {
                 System.out.println("Failed to get modification time of .");
                 e.printStackTrace();
                 System.exit(1);
             }
         }
-
-        System.out.println("SrcModTime: "  + mTimeSrc + ", JarModTime: " + mTimeJar);
         
         if (mTimeJar > mTimeSrc) {
             System.out.println("Jar is newest!");
@@ -300,7 +298,7 @@ public class Nob {
 
         // Delete Jar
         try {
-            Files.deleteIfExists(NOBjarPath);
+            Files.deleteIfExists(buildJarPath);
         } catch (Exception e) {
             System.out.println("Could not delete old jar file!");
             e.printStackTrace();
