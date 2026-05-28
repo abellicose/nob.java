@@ -28,11 +28,9 @@ class Compile {
         try {
             NOBmkdirIfNotExists(cfg.out);
 
-            List<String> files = Files.walk(cfg.src)
-                .filter(path -> path.toString().endsWith(".java"))
-                .map(Path::toString).toList();
+            List<String> files = Graph.getFilesToCompile(cfg.src).stream().map(Path::toString).toList();
 
-            if (files != null && files.isEmpty()) {
+            if (files.isEmpty()) {
                 System.out.println("No source files found!");
                 System.exit(1);
             }
