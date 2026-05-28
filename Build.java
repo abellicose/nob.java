@@ -5,10 +5,11 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
+import static nob.Nob.*;
 
 public class Build {
     public static void main(String[] args) {
-        Nob.goRebuildUrself("Build");
+        goRebuildUrself("Build");
         // everything else isnt stil built but planned
         // specify source
         // resources and what not

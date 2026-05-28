@@ -5,21 +5,25 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-import static Util.*;
+package nob;
+
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.lang.ProcessBuilder;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.function.Consumer;
+
+import static nob.Util.*;
 
 public class BuildJar {
     public static void buildJar(Consumer<JarConfig> consumer) {
         JarConfig config = new JarConfig();
         consumer.accept(config);
-        return buildJar(config);
+        buildJar(config);
     }
 
-    public static void buildJar(JarsConfig cfg) {
+    public static void buildJar(JarConfig cfg) {
         try {
             NOBmkdirIfNotExists(cfg.out);
 
@@ -42,7 +46,7 @@ public class BuildJar {
                         "-C", cfg.classes.toString(), ".")
                     );
 
-            int processStatus = new ProcessBuilder(cmd)
+            new ProcessBuilder(cmd)
                 .inheritIO()
                 .start()
                 .waitFor();
@@ -54,12 +58,6 @@ public class BuildJar {
                 System.out.println("Failed to delete temp manifest file");
                 e.printStackTrace();
             }
-
-            if (processStatus != 0) {
-                System.out.println("Jar Creation Process Failed For Some Reason. FIGURE IT OUT");
-                System.exit(1);
-            }
-            System.out.println("Jar creation succeeded");
 
         } catch (Exception e) {
             System.out.println("Error During Jar Building Process");

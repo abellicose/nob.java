@@ -5,8 +5,13 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
+package nob;
+
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.nio.file.Path;
 
 class JarConfig {
     Path classes = Path.of("build/classes/");
@@ -32,7 +37,7 @@ class JarConfig {
 
         if (mainClass != null) builder.append("Main-Class: " + mainClass + "\n");
         if (!classpath.isEmpty()) builder.append("Class-Path: " + String.join(" ", classpath) + "\n");
-        extraAttributes.forEach((k, v) -> builder.append(k + ": " + v + "\n"));
+        mfAttribs.forEach((k, v) -> builder.append(k + ": " + v + "\n"));
         return builder.toString();
     }
 }
