@@ -12,9 +12,11 @@ import java.util.List;
 import java.util.ArrayList;
 
 public class CompileConfig {
-    public Path src = Path.of("src/");
-    public Path out = Path.of("build/classes/");
-    public String packageName = "";
+    public String packageName       = null;       // Required
+    public String src               = "src/";
+    public String dest              = "build/";
+    public String libs              = "libs/";    // dest + lisbsDir -> build/libs
+    public String classes           = "classes/"; // build/classes/  -> build/classes
 
     public List<String> modules = new ArrayList<>();
     public List<String> classpath = new ArrayList<>();
@@ -36,5 +38,9 @@ public class CompileConfig {
     /** Paths relative to srcDir */
     public void addDirsToInclude(String... dirs) {
         dirsToInclude.addAll(List.of(dirs));
+    }
+
+    public void validate() throws NobException {
+        if (packageName == null) throw new NobException("Must set CompileConfig.packageName");
     }
 }

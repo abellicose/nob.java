@@ -12,21 +12,12 @@ import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.io.Serializable;
-import java.io.FileInputStream;
-import java.io.ObjectInputStream;
-import java.io.FileOutputStream;
-import java.io.ObjectOutputStream;
 
 public class MerkleNode implements Serializable {
     public Path path;
     public long hash = 0;
     public List<MerkleNode> children = new ArrayList<>();
     public boolean leaf;
-
-    @Override
-    public String toString() {
-        return "Path: " + path.toString() + ", Hash: " + hash;
-    }
 
     public static MerkleNode build(Path path) throws Exception {
         return build(path, Files.getLastModifiedTime(path).toMillis());
@@ -53,11 +44,11 @@ public class MerkleNode implements Serializable {
         return node;
     }
 
-    public static void diff(MerkleNode prev, MerkleNode curr, List<Path> changed, List<Path> deleted) throws Exception {
+    public static void diff(MerkleNode prev, MerkleNode curr, List<String> changed, List<String> deleted) throws Exception {
         if (prev.hash == curr.hash) return;
 
         if (curr.leaf) {
-            changed.add(curr.path);
+            changed.add(curr.path.toString());
             return;
         }
 
@@ -72,29 +63,33 @@ public class MerkleNode implements Serializable {
             else { collectLeaves(b.path, changed); j++; }
         }
 
-        while (i < prev.children.size()) { collectLeaves(prev.children.get(i++).path, deleted); }
-        while (j < curr.children.size()) { collectLeaves(curr.children.get(j++).path, changed); }
+        while (i < prev.children.size()) { collectLeaves(prev.children.get(i++).path.toString(), deleted); }
+        while (j < curr.children.size()) { collectLeaves(curr.children.get(j++).path.toString(), changed); }
     }
 
-    public static void collectLeaves(Path path, List<Path> collection) throws Exception {
+    public static void collectLeaves(Path path, List<String> collection) throws Exception {
         if (Files.isDirectory(path)) {
             for (Path p: Files.list(path).toList()) { collectLeaves(p, collection); }
         } else {
-            collection.add(path);
+            collection.add(path.toString());
         }
     }
 
-    public static MerkleNode readCache(String fileName) throws Exception {
-        Path path = Path.of(fileName);
-        if (!Files.exists(path)) return new MerkleNode();
-        try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(path))) {
-            return (MerkleNode) in.readObject();
-        }
+    public List<String> collectAllFiles() {
+        List<String> result = new ArrayList<>();
+        getFilesFrom(path, result);
+        return result;
     }
 
-    public static void writeCache(MerkleNode node, String fileName) throws Exception {
-        try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(Path.of(fileName)))) {
-            out.writeObject(node);
+    private void getFilesFrom(Path path, List<String> children) {
+        if (Files.isDirectory(path)) {
+            try (var stream = Files.list(path)) {
+                stream.forEach(childPath -> getFilesFrom(childPath, children));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }        
+        } else {
+            children.add(path.toString());
         }
     }
 }

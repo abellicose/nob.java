@@ -16,7 +16,6 @@ import nob.cache.MerkleNode;
 public class Graph {
 
     public static List<Path> getFilesToCompile(Path src) throws Exception {
-        MerkleNode prev = MerkleNode.readCache("build/nob.cache");
         MerkleNode curr = MerkleNode.build(src);
         prev.path = Path.of("./");
         System.out.println(prev.toString());

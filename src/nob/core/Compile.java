@@ -18,15 +18,59 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassReader;
 import nob.api.CompileConfig;
 import nob.analysis.DependencyBuilder;
+import nob.cache.BuildContext;
 
 import static nob.util.Util.*;
 
 public class Compile {
+
+    public static void compileNew(CompileConfig cfg) {
+        try {
+            BuildContext ctx = BuildContext.from(cfg);
+            DiffResult diff = Stale.check(ctx);
+            if (diff.changed().isEmpty()) { 
+                System.out.println("[nob] All files are unchanged."); return; 
+            }
+
+            runJavac(diff.changed(), cfg, ctx);
+
+        } catch (Exception e) {
+            System.out.println("[nob] Something went wrong while compiling");
+            System.out.println("---------------------------------------------");
+            e.printStackTrace();
+        }
+    }
+
+    static void runJavac(List<String> files, CompileConfig cfg, BuildContext ctx) throws Exception {
+        List<String> cmd = new  ArrayList<>(List.of("javac"));
+
+        if (!cfg.modules.isEmpty()) {
+            cmd.add("--add-modules");
+            cmd.addAll(cfg.modules);
+        }
+
+        if (!cfg.classpath.isEmpty()) {
+            String sep = System.getProperty("path.separator");
+            cmd.add("-cp");
+            cmd.add("." + sep + String.join(sep, cfg.classpath));
+        }
+
+        cmd.add("-d");
+        cmd.add(ctx.out.toString());
+
+        cmd.addAll(cfg.flags);
+        cmd.addAll(files);
+
+        int exit = new ProcessBuilder(cmd).inheritIO().start().waitFor();
+
+        if (exit != 0) throw new NobException("Compilation failed with exit code " + exit);
+    }
+
     public static void compile(Consumer<CompileConfig> consumer) {
         CompileConfig config = new CompileConfig();
         consumer.accept(config);
         compile(config);
-    }
+    } 
 
     public static void compile(CompileConfig cfg) {
         try {
