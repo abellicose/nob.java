@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.lang.ProcessBuilder;
 import java.nio.file.StandardCopyOption;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassReader;
 
 import static nob.Util.*;
 
@@ -61,6 +63,10 @@ class Compile {
                 .inheritIO()
                 .start()
                 .waitFor();
+
+            String class1 = files.get(0);
+            Path filePath = cfg.out.resolve(cfg.src.relativize(Path.of(class1)).toString().replace(".java", ".class"));
+            System.out.println("File: " + class1 + "Test: " + filePath);
 
             System.out.println("Compilation succeeded");
 

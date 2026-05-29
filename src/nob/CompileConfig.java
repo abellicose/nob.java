@@ -14,6 +14,7 @@ import java.util.ArrayList;
 class CompileConfig {
     Path src = Path.of("src/");
     Path out = Path.of("build/classes/");
+    String packageName = "";
 
     List<String> modules = new ArrayList<>();
     List<String> classpath = new ArrayList<>();
