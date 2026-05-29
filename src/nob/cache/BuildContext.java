@@ -39,8 +39,8 @@ public class BuildContext {
     public BuildContext(CompileConfig cfg) {
         src = Path.of(cfg.src);
         dest = Path.of(cfg.dest);
-        out = dest.resolve(cfg.libs);
-        libs = dest.resolve(cfg.classes);
+        out = dest.resolve(cfg.classes);
+        libs = dest.resolve(cfg.libs);
         cacheFile = dest.resolve("nob.cache");
         packageName = cfg.packageName.replace("\\.", "/");
     }
