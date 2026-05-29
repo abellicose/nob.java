@@ -19,5 +19,6 @@ public class Build {
         // open filewatcher for hotload
         // any step is optional and doesn't depend on the previous one, user can build tow different jars if they wanted to with old source. but they do need to be done in a specific order to work properly
     }
+    public static void hi() {}
 }
 

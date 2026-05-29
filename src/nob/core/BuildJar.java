@@ -5,7 +5,7 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob;
+package nob.core;
 
 import java.nio.file.Path;
 import java.nio.file.Files;
@@ -13,8 +13,9 @@ import java.lang.ProcessBuilder;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.function.Consumer;
+import nob.api.JarConfig;
 
-import static nob.Util.*;
+import static nob.util.Util.*;
 
 public class BuildJar {
     public static void buildJar(Consumer<JarConfig> consumer) {

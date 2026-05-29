@@ -11,7 +11,11 @@ import java.util.function.Consumer;
 import java.nio.file.Path;
 import java.nio.file.Files;
 
-import static nob.Util.*;
+import nob.core.BuildJar;
+import nob.core.Compile;
+import nob.api.JarConfig;
+import nob.api.CompileConfig;
+import static nob.util.Util.*;
 
 public class Nob {
     private static final String nob = "build/.nob/classes/";

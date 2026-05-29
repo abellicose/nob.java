@@ -5,7 +5,7 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob;
+package nob.core;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,10 +16,12 @@ import java.lang.ProcessBuilder;
 import java.nio.file.StandardCopyOption;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassReader;
+import nob.api.CompileConfig;
+import nob.analysis.DependencyBuilder;
 
-import static nob.Util.*;
+import static nob.util.Util.*;
 
-class Compile {
+public class Compile {
     public static void compile(Consumer<CompileConfig> consumer) {
         CompileConfig config = new CompileConfig();
         consumer.accept(config);
@@ -64,9 +66,11 @@ class Compile {
                 .start()
                 .waitFor();
 
-            String class1 = files.get(0);
-            Path filePath = cfg.out.resolve(cfg.src.relativize(Path.of(class1)).toString().replace(".java", ".class"));
-            System.out.println("File: " + class1 + "Test: " + filePath);
+            byte[] fileData = Files.readAllBytes(Path.of(cfg.out.resolve(files.get(0)).toString().replace(".java", ".class")));
+            ClassReader cr = new ClassReader(fileData);
+            ClassVisitor cv = new DependencyBuilder(org.objectweb.asm.Opcodes.ASM9);
+
+            cr.accept(cv, 0);
 
             System.out.println("Compilation succeeded");
 

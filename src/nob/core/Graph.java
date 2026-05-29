@@ -5,12 +5,13 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob;
+package nob.core;
 
 import java.util.List;
 import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import nob.cache.MerkleNode;
 
 public class Graph {
 

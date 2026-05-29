@@ -5,7 +5,7 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob;
+package nob.analysis;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
@@ -18,7 +18,8 @@ public class DependencyBuilder extends ClassVisitor {
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         System.out.println("Name: " + name + ", Descriptor: " + descriptor + ", Signature: " + signature);
-        return super.visitMethod(access, name, descriptor, signature, exceptions);
+        SignatureTracker st = new SignatureTracker(org.objectweb.asm.Opcodes.ASM9);
+        return st;
     }
 
 }

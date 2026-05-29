@@ -5,13 +5,13 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob;
+package nob.util;
 
 import java.lang.Exception;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-class Util {
+public class Util {
     // returns if succeeded
     public static void NOBmkdirIfNotExists(Path path) throws Exception {
         if (Files.notExists(path)) {
