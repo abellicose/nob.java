@@ -19,10 +19,17 @@ import org.objectweb.asm.ClassReader;
 import nob.api.CompileConfig;
 import nob.analysis.DependencyBuilder;
 import nob.cache.BuildContext;
+import nob.util.NobException;
 
 import static nob.util.Util.*;
 
 public class Compile {
+
+    public static void compileNew(Consumer<CompileConfig> consumer) {
+        CompileConfig config = new CompileConfig();
+        consumer.accept(config);
+        compileNew(config);
+    } 
 
     public static void compileNew(CompileConfig cfg) {
         try {
@@ -33,6 +40,14 @@ public class Compile {
             }
 
             runJavac(diff.changed(), cfg, ctx);
+
+            List<String> secondPass = Scanner.scan(diff, ctx);
+            if (!secondPass.isEmpty()) {
+                runJavac(secondPass, cfg, ctx);
+            }
+            Scanner.scan(diff, ctx);
+
+            // run buildjar
 
         } catch (Exception e) {
             System.out.println("[nob] Something went wrong while compiling");
@@ -66,6 +81,7 @@ public class Compile {
         if (exit != 0) throw new NobException("Compilation failed with exit code " + exit);
     }
 
+/*
     public static void compile(Consumer<CompileConfig> consumer) {
         CompileConfig config = new CompileConfig();
         consumer.accept(config);
@@ -128,7 +144,7 @@ public class Compile {
                         Files.walk(src).forEach(file -> {
                             try {
                                 Path relative = src.getParent().relativize(file);
-                                Files.copy(file, cfg.out.resolve(relative), StandardCopyOption.REPLACE_EXISTING);
+                                Files.copy(file, ctx.out.resolve(relative), StandardCopyOption.REPLACE_EXISTING);
                             } catch (Exception e) {
                                 throw new RuntimeException(e);
                             }
@@ -141,5 +157,6 @@ public class Compile {
             e.printStackTrace();
         }
     }
+*/
 }
 

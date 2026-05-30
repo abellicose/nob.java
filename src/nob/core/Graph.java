@@ -16,6 +16,7 @@ import nob.cache.MerkleNode;
 public class Graph {
 
     public static List<Path> getFilesToCompile(Path src) throws Exception {
+/*
         MerkleNode curr = MerkleNode.build(src);
         prev.path = Path.of("./");
         System.out.println(prev.toString());
@@ -24,6 +25,8 @@ public class Graph {
         List<Path> deleted = new ArrayList<>();
         MerkleNode.diff(prev, curr, changed, deleted);
         return changed;
+*/
+        return new ArrayList<>();
     }
 
     public static void buildCache(Path out) {

@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
 import nob.cache.BuildContext;
+import nob.cache.DiffResult;
 
 public class Scanner {
     
@@ -24,24 +25,31 @@ public class Scanner {
     // Only add .java when feeding to javac, only add .class when reading bytecode
     public static List<String> scan(DiffResult diff, BuildContext ctx) throws Exception {
         // should never happen
-        if (diff.changed.isEmpty() && diff.deleted.isEmpty()) {
+        if (diff.changed().isEmpty() && diff.deleted().isEmpty()) {
             System.out.println("[nob] No files have been changed.");
             return List.of();
         }
 
         Set<String> rebuildList = new HashSet<>();
-        Map<String, String> changeMap = getCorrespondingClassFiles(diff.deleted, ctx.out);
+        Map<String, String> changeMap = getCorrespondingClassFiles(diff.deleted(), ctx.out);
+        Set<String> files = new HashSet<>(changedMap.values);
 
-        for (String file: changeMap.values()) {
-            List<String> deps = ctx.methods.remove(file);
+        // iterating through the class files of the files deleted (if exists)
+        for (String file: files.values()) {
+            // last existing methods of the deleted class
+            Set<String> deps = ctx.methods.remove(file);
             if (deps == null) continue;
+            // for all methods, remove their dependency classes and add them to the rebuild list
             for (String method: deps) {
                 rebuildList.addAll(ctx.methodCalls.remove(method));
             }
 
+            // for all the external methods this class called
             deps = ctx.methodsCalled.remove(file);
             if (deps == null) continue;
+            // remove this class as a dependent
             for (String method: deps) {
+                // this be lowkey expensive,
                 ctx.methodCalls.computeIfPresent(method, (k, v) -> {
                     v.remove(file);
                     return v;
@@ -49,35 +57,45 @@ public class Scanner {
             }
         }
 
-        changeMap = getCorrespondingClassFiles(diff.changed, ctx.out);
+        // .class files for all source files that changed
+        changeMap = getCorrespondingClassFiles(diff.changed(), ctx.out);
 
-        Map<String, List<String>> updatedMethods = new HashMap<>();
-        Map<String, List<String>> updatedMethodsCalled = new HashMap<>();
+        // new methods and new methods this class deps on
+        Map<String, Set<String>> updatedMethods = new HashMap<>();
+        Map<String, Set<String>> updatedMethodsCalled = new HashMap<>();
 
         // Methods: Every method inside a source file (and its inner classes)
         // MethodsCalled: Every method called from a source file (and its inner classes)
         // MethodCalls: Every individual methods and their dependencies
 
-        // TODO: For Classes With Inner classes, The entire source (class + inner class) needs to be processed first before updating.
         for (String file: changeMap.keySet()) {
+            // read bytes of a class
             byte[] bytecode = Files.readAllBytes(ctx.out.resolve(file + ".class"));
 
+            // scan the methods and the methods being called by this class
             Set<String> methods = new HashSet<>();
-            Set<String> methodsCalling = new HashSet<>();
+            Set<String> methodsCalled = new HashSet<>();
 
-            Scan sctx = new Scan(ctx.packageName, methods, methodsCalling);
+            Scan sctx = new Scan(ctx.packageName, methods, methodsCalled);
+            scanFile(bytecode, sctx);
+
             if (!sctx.className.equals(file)) {
                 throw new NobException("WHAT, ClassName: " + sctx.className + ", FileName: " + file);
             }
 
-            scanFile(bytecode, sctx);
-
             String fileName = changeMap.get(sctx.className);
 
-            List<String> oldMethodsCalled = ctx.methodsCalled.get(fileName);
-            updatedMethodsCalled.computeIfAbsent(fileName, k -> new ArrayList<>()).addAll(methodsCalling);
+            // add the parent class (if one) as the entry and track its methods and methodcalls
+            updatedMethods.computeIfAbsent(fileName, k -> new HashSet<>()).addAll(methods);
+            updatedMethodsCalled.computeIfAbsent(fileName, k -> new HashSet<>()).addAll(methodsCalled);
+        }
 
-            if (oldMethodsCalled != null) {
+        // for each parent file, compare the methods it calls, if a method stopped being called, remove ourselves from their dependency list
+        // if we call new external methods, add ourselves to their dep list
+        for (String file: files) {
+            Set<String> prev = ctx.methodsCalled.get(file);
+            Set<String> curr = updatedMethodsCalled.get(file);
+            if (prev != null) {
                 // ts complicated on purpose
                 // if we can't remove a method from the new list, that means that method existed
                 // but doesnt exist anymore. which means it has been removed
@@ -85,25 +103,27 @@ public class Scanner {
                 // and after removing all, we might have some methods left that exist now but 
                 // weren't before, meaning they were added. so we add ourselves to their
                 // deps list
-                for (String method: oldMethodsCalled) {
-                    if (!methodsCalling.remove(method)) {
+                for (String method: prev) {
+                    if (!curr.remove(method)) {
                         // method we were calling, but now we arent
-                        ctx.methodCalls.get(method).remove(fileName);
+                        ctx.methodCalls.get(method).remove(file);
                     }  
                 }
                 // methods we are calling but weren't
-                for (String method: methodsCalling) {
-                    ctx.methodCalls.computeIfAbsent(method, k -> new ArrayList<>()).add(fileName);
+                for (String method: curr) {
+                    ctx.methodCalls.computeIfAbsent(method, k -> new HashSet<>()).add(file);
                 }
             }
 
-            List<String> oldCachedMethods = ctx.methods.get(fileName);
-            updatedMethods.computeIfAbsent(fileName, k -> new ArrayList<>()).addAll(methods);
+            // Compare the list of old and new methods this class has,
+            // if any has been deleted, rebuild their dependency classes
+            prev = ctx.methods.get(file);
+            curr = updatedMethods.get(file);
 
-            if (oldCachedMethods != null) {
-                for (String method: oldCachedMethods) {
-                    if (!methods.contains(method)) {
-                        List<String> deps = ctx.methodCalls.get(method);
+            if (prev != null) {
+                for (String method: prev) {
+                    if (!curr.contains(method)) {
+                        List<String> deps = ctx.methodCalls.remove(method);
                         if (deps == null) continue;
                         rebuildList.addAll(deps);
                     }
@@ -111,19 +131,19 @@ public class Scanner {
             }
         }
 
-        for (Map.Entry<String, List<String>> entry: updatedMethods.entrySet()) {
-            ctx.methods.put(entry.getKey(), entry.getValue());
+        // update cache with all the newly tracked data
+        ctx.methods.putAll(updatedMethods);
+        ctx.methodsCalled.putAll(updatedMethodsCalled);
+        List<String> filteredList = new ArrayList<>();
+        Set<String> filter = new HashSet<>(diff.changed());
+        for (String file: rebuildList) {
+            String f = file + ".java";
+            if (!filter.contains(f)) {
+                filteredList.add(f);
+            }
         }
-
-        for (Map.Entry<String, List<String>> entry: updatedMethodsCalled.entrySet()) {
-            ctx.methodsCalled.put(entry.getKey(), entry.getValue());
-        }
-
-        for (String processed: diff.changed) {
-            rebuildList.remove(processed);
-        }
-
-        return new ArrayList(rebuildList);
+        
+        return filteredList;
     }
 
     static void scanFile(byte[] bytecode, ScanContext ctx) {
@@ -138,6 +158,7 @@ public class Scanner {
             sourceSet.add(sourceFile.replace(".java", ""));
         }
 
+        // This is essentially a list, map so that inner classes map to the outer class files
         Map<String, String> classMap = new HashMap<>();
         try (var stream = Files.walk(out)) { // out is build/classes/
             stream.forEach(path -> {
@@ -147,7 +168,7 @@ public class Scanner {
                 if (sourceSet.contains(outer)) {
                     classMap.put(noExt, outer);
                 }
-            })
+            });
         }
         return classMap;
     }

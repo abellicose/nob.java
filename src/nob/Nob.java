@@ -21,11 +21,11 @@ public class Nob {
     private static final String nob = "build/.nob/classes/";
 
     public static void compile(Consumer<CompileConfig> consumer) {
-        Compile.compile(consumer);
+        Compile.compileNew(consumer);
     }
 
     public static void compile(CompileConfig cfg) {
-        Compile.compile(cfg);
+        Compile.compileNew(cfg);
     }
 
     public static void buildJar(Consumer<JarConfig> consumer) {

@@ -27,7 +27,7 @@ public class DependencyBuilder extends ClassVisitor {
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         this.ctx.methods.add(this.ctx.className + "/" + name + descriptor);
-        System.out.println("ClassName: " + className + ", Method: " this.ctx.className + name + descriptor);
+        System.out.println("ClassName: " + className + ", Method: " + this.ctx.className + name + descriptor);
         SignatureTracker st = new SignatureTracker(org.objectweb.asm.Opcodes.ASM9, this.ctx);
         return st;
     }

@@ -17,6 +17,7 @@ import java.io.FileOutputStream;
 import java.io.ObjectOutputStream;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
 
 import static nob.util.Util.*;
 
@@ -30,11 +31,11 @@ public class BuildContext {
 
     public MerkleNode merkleCache = null;
     // Methods owned by a class
-    public Map<String, List<String>> methods = new HashMap<>();
+    public Map<String, Set<String>> methods = new HashMap<>();
     // Methods called by a class
-    public Map<String, List<String>> methodsCalled = new HashMap<>();
+    public Map<String, Set<String>> methodsCalled = new HashMap<>();
     // Methods and their dependencies
-    public Map<String, List<String>> methodCalls = new HashMap<>();
+    public Map<String, Set<String>> methodCalls = new HashMap<>();
 
     public BuildContext(CompileConfig cfg) {
         src = Path.of(cfg.src);
