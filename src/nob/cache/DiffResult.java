@@ -9,5 +9,5 @@ package nob.cache;
 
 import java.util.List;
 
-record DiffResult(List<String> recompile, List<String> delete) {}
+public record DiffResult(List<String> changed, List<String> deleted) {}
 

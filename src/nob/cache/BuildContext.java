@@ -29,6 +29,7 @@ public class BuildContext {
     public final Path cacheFile;
     public final String packageName;
 
+    private static final int CACHE_VERSION = 1;
     public MerkleNode merkleCache = null;
     // Methods owned by a class
     public Map<String, Set<String>> methods = new HashMap<>();
@@ -41,11 +42,12 @@ public class BuildContext {
         src = Path.of(cfg.src);
         dest = Path.of(cfg.dest);
         out = dest.resolve(cfg.classes);
-        libs = dest.resolve(cfg.libs);
+        libs = Path.of(cfg.libs);
         cacheFile = dest.resolve("nob.cache");
         packageName = cfg.packageName.replace("\\.", "/");
     }
 
+    @SuppressWarnings("unchecked")
     public static BuildContext load(CompileConfig cfg) throws Exception {
         cfg.validate();
         BuildContext ctx = new BuildContext(cfg);
@@ -53,11 +55,19 @@ public class BuildContext {
         if (!Files.exists(ctx.cacheFile)) return ctx;
 
         try(ObjectInputStream in = new ObjectInputStream(Files.newInputStream(ctx.cacheFile))) {
+            int version = (int) in.readObject();
+            if (version != CACHE_VERSION) {
+                System.out.println("[nob] Cache Version Mismatch. Triggering Full Rebuild.");
+                return ctx;
+            }
             ctx.merkleCache = (MerkleNode) in.readObject();
-            ctx.classToMethods = (Map<String, List<String>>) in.readObject();
-            ctx.methodToCallers = (Map<String, List<String>>) in.readObject();
+            ctx.methods = (Map<String, Set<String>>) in.readObject();
+            ctx.methodsCalled = (Map<String, Set<String>>) in.readObject();
+            ctx.methodCalls = (Map<String, Set<String>>) in.readObject();
         } catch (Exception e) {
             System.out.println("[nob] Failed to read cache files.");
+            e.printStackTrace();
+            System.exit(1);
         }
 
         return ctx;
@@ -66,10 +76,12 @@ public class BuildContext {
     public void save() throws Exception {
         try {
             NOBmkdirIfNotExists(cacheFile.getParent());
-            try (ObjectOutputStraem out = new ObjectOutputStream(Files.newOutputStream(cacheFile))) {
+            try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(cacheFile))) {
+                out.writeObject(CACHE_VERSION);
                 out.writeObject(merkleCache);
-                out.writeObject(classToMethods);
-                out.writeObject(methodToCallers);
+                out.writeObject(methods);
+                out.writeObject(methodsCalled);
+                out.writeObject(methodCalls);
             }
         } catch (Exception e) {
             System.out.println("[nob] Failed to save cache file");

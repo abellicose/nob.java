@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.function.Consumer;
 import nob.api.JarConfig;
+import nob.util.NobException;
 
 import static nob.util.Util.*;
 
@@ -25,45 +26,35 @@ public class BuildJar {
     }
 
     public static void buildJar(JarConfig cfg) {
+        Path manifestFile = null;
         try {
-            NOBmkdirIfNotExists(cfg.out);
+            NOBmkdirIfNotExists(Path.of(cfg.out));
 
-            int classFileCount = Files.walk(cfg.classes)
-                .filter(path -> path.toString().endsWith(".class"))
-                .toList().size();
-            if (classFileCount == 0) {
-                System.out.println("No class files found.");
-                System.exit(1);
-            }
-
-            cfg.mfAttribs.put("Created-By", "Nob");
-            Path manifestFile = Files.createTempFile("MANIFEST", ".MF");
-            Files.writeString(manifestFile, cfg.buildManifest());
+            manifestFile = createManifest(cfg);
 
             List<String> cmd = new ArrayList<>(
                     List.of("jar", "cfm",
-                        cfg.out.resolve(cfg.name).toString(),
+                        Path.of(cfg.out).resolve(cfg.name).toString(),
                         manifestFile.toString(),
-                        "-C", cfg.classes.toString(), ".")
+                        "-C", cfg.classes, ".")
                     );
 
-            new ProcessBuilder(cmd)
-                .inheritIO()
-                .start()
-                .waitFor();
-
-            try {
-                Files.delete(manifestFile);
-            }
-            catch (Exception e) {
-                System.out.println("Failed to delete temp manifest file");
-                e.printStackTrace();
-            }
+        int exit = new ProcessBuilder(cmd).inheritIO().start().waitFor();
+        if (exit != 0) throw new NobException("Compilation failed with exit code " + exit);
 
         } catch (Exception e) {
             System.out.println("Error During Jar Building Process");
             e.printStackTrace();
+        } finally {
+            if (manifestFile != null) try {Files.deleteIfExists(manifestFile);} catch (Exception ignored){}
         }
+    }
+
+    static Path createManifest(JarConfig cfg) throws Exception {
+        Path manifest = Files.createTempFile("MANIFEST", ".MF");
+        cfg.mfAttribs.put("Created-By", "Nob");
+        Files.writeString(manifest, cfg.buildManifest());
+        return manifest;
     }
 }
 

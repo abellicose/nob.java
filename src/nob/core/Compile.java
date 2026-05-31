@@ -20,35 +20,42 @@ import nob.api.CompileConfig;
 import nob.analysis.DependencyBuilder;
 import nob.cache.BuildContext;
 import nob.util.NobException;
+import nob.cache.DiffResult;
+import nob.analysis.Scanner;
+import nob.cache.Stale;
 
 import static nob.util.Util.*;
 
 public class Compile {
 
-    public static void compileNew(Consumer<CompileConfig> consumer) {
+    public static void compile(Consumer<CompileConfig> consumer) {
         CompileConfig config = new CompileConfig();
         consumer.accept(config);
-        compileNew(config);
+        compile(config);
     } 
 
-    public static void compileNew(CompileConfig cfg) {
+    public static void compile(CompileConfig cfg) {
         try {
-            BuildContext ctx = BuildContext.from(cfg);
+            BuildContext ctx = BuildContext.load(cfg);
             DiffResult diff = Stale.check(ctx);
-            if (diff.changed().isEmpty()) { 
+            System.out.println("[nob] DiffList: " + diff);
+            if (diff.changed().isEmpty() && diff.deleted().isEmpty()) { 
                 System.out.println("[nob] All files are unchanged."); return; 
             }
 
             runJavac(diff.changed(), cfg, ctx);
 
             List<String> secondPass = Scanner.scan(diff, ctx);
-            if (!secondPass.isEmpty()) {
+            int n = 0; // to ensure infinite loops dont happen, just in case cuz im still building it
+            while (!secondPass.isEmpty()) {
                 runJavac(secondPass, cfg, ctx);
+                if (n > 4) throw new NobException("SecondPass is running too many times");
             }
-            Scanner.scan(diff, ctx);
 
-            // run buildjar
+            ctx.save();
 
+            System.out.println("[nob] Compilation Finished Successfully");
+            
         } catch (Exception e) {
             System.out.println("[nob] Something went wrong while compiling");
             System.out.println("---------------------------------------------");
@@ -64,11 +71,16 @@ public class Compile {
             cmd.addAll(cfg.modules);
         }
 
-        if (!cfg.classpath.isEmpty()) {
-            String sep = System.getProperty("path.separator");
-            cmd.add("-cp");
-            cmd.add("." + sep + String.join(sep, cfg.classpath));
-        }
+        String sep = System.getProperty("path.separator");
+        List<String> cpOpts = new ArrayList<>();
+        cpOpts.add(ctx.out.toString());
+        cpOpts.add(".");
+        cpOpts.add(ctx.libs + "/*");
+        cpOpts.addAll(cfg.classpath);
+        cmd.add("-cp");
+        cmd.add(String.join(sep, cpOpts));
+
+        System.out.println("[nob] Libs Dir: " + ctx.libs + ", CP: " + (String.join(sep, cpOpts)));
 
         cmd.add("-d");
         cmd.add(ctx.out.toString());
@@ -80,83 +92,5 @@ public class Compile {
 
         if (exit != 0) throw new NobException("Compilation failed with exit code " + exit);
     }
-
-/*
-    public static void compile(Consumer<CompileConfig> consumer) {
-        CompileConfig config = new CompileConfig();
-        consumer.accept(config);
-        compile(config);
-    } 
-
-    public static void compile(CompileConfig cfg) {
-        try {
-            NOBmkdirIfNotExists(cfg.out);
-
-            List<String> files = Graph.getFilesToCompile(cfg.src).stream().map(Path::toString).toList();
-
-            if (files.isEmpty()) {
-                System.out.println("No source files found!");
-                System.exit(1);
-            }
-
-            List<String> cmd = new ArrayList<>(List.of("javac"));
-
-            // --add-modules
-            if (!cfg.modules.isEmpty()) {
-                cmd.add("--add-modules");
-                cmd.addAll(cfg.modules);
-            }
-
-            // classpath
-            if (!cfg.classpath.isEmpty()) {
-                cmd.add("-cp");
-                cmd.add(".:" + String.join(":", cfg.classpath));
-            }
-
-            // build dir
-            cmd.add("-d");
-            cmd.add(cfg.out.toString());
-
-            cmd.addAll(cfg.flags);
-            cmd.add("-Xlint");
-            cmd.addAll(files);
-
-            new ProcessBuilder(cmd)
-                .inheritIO()
-                .start()
-                .waitFor();
-
-            byte[] fileData = Files.readAllBytes(Path.of(cfg.out.resolve(files.get(0)).toString().replace(".java", ".class")));
-            ClassReader cr = new ClassReader(fileData);
-            ClassVisitor cv = new DependencyBuilder(org.objectweb.asm.Opcodes.ASM9);
-
-            cr.accept(cv, 0);
-
-            System.out.println("Compilation succeeded");
-
-            if (!cfg.dirsToInclude.isEmpty()) {
-                System.out.println("Moving Dirs to Include");
-                Path srcPathFinal = cfg.src;
-
-                cfg.dirsToInclude.forEach(dir -> {
-                    Path src = srcPathFinal.resolve(dir);
-                    try {
-                        Files.walk(src).forEach(file -> {
-                            try {
-                                Path relative = src.getParent().relativize(file);
-                                Files.copy(file, ctx.out.resolve(relative), StandardCopyOption.REPLACE_EXISTING);
-                            } catch (Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                        });                    
-                    } catch (Exception e) { e.printStackTrace(); };
-                });
-            }
-        } catch (Exception e) {
-            System.out.println("Something went wrong while trying to compile the files");
-            e.printStackTrace();
-        }
-    }
-*/
 }
 

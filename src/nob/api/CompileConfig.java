@@ -10,13 +10,14 @@ package nob.api;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.ArrayList;
+import nob.util.NobException;
 
 public class CompileConfig {
     public String packageName       = null;       // Required
     public String src               = "src/";
     public String dest              = "build/";
-    public String libs              = "libs/";    // dest + lisbsDir -> build/libs
-    public String classes           = "classes/"; // build/classes/  -> build/classes
+    public String libs              = "libs/";    // relative to project root
+    public String classes           = "classes/"; // relative to dest
 
     public List<String> modules = new ArrayList<>();
     public List<String> classpath = new ArrayList<>();

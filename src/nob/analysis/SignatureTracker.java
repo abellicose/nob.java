@@ -19,7 +19,7 @@ public class SignatureTracker extends MethodVisitor {
     @Override
     public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
         if (owner.startsWith(ctx.packageName) && !owner.equals(ctx.className)) {
-            this.methodCalls.add(owner + "/" + name + descriptor);
+            ctx.methodCalls.add(owner + "/" + name + descriptor);
             System.out.println("Owner: " + owner + ", Name: " + name + ", Descriptor: " + descriptor + ", Val: " + owner + name + descriptor);
         }
         super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);

@@ -14,8 +14,8 @@ import java.util.HashMap;
 import java.nio.file.Path;
 
 public class JarConfig {
-    public Path classes = Path.of("build/classes/");
-    public Path out = Path.of("build/jars");
+    public String classes = "build/classes/";
+    public String out = "build/jars";
     public String name = "out.jar";
     public String mainClass = null;
 

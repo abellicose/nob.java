@@ -18,14 +18,14 @@ import nob.api.CompileConfig;
 import static nob.util.Util.*;
 
 public class Nob {
-    private static final String nob = "build/.nob/classes/";
+    private static final String nob = "build/.nob";
 
     public static void compile(Consumer<CompileConfig> consumer) {
-        Compile.compileNew(consumer);
+        Compile.compile(consumer);
     }
 
     public static void compile(CompileConfig cfg) {
-        Compile.compileNew(cfg);
+        Compile.compile(cfg);
     }
 
     public static void buildJar(Consumer<JarConfig> consumer) {
@@ -42,7 +42,7 @@ public class Nob {
         final String name = buildFileName.replace(".java", "");
         Path buildFile = Path.of(name + ".java");
         if (!Files.exists(buildFile)) {
-            System.out.println("Build file " + buildFileName + " does not exist at the specified path!");
+            System.out.println("Build file " + buildFileName + " does not exist at the specified path!!");
             System.exit(1);
         }
 
@@ -86,15 +86,15 @@ public class Nob {
 
         // Recompile and Rebuild
         compile(cfg -> {
-            cfg.src = buildFile;
-            cfg.out = Path.of(nob);
+            cfg.src = buildFile.toString();
+            cfg.dest = nob; // build/.nob
             cfg.addToClasspath("Nob.jar");
         });
     
         buildJar(cfg -> {
             cfg.name = name + ".jar";
-            cfg.classes = Path.of(nob);
-            cfg.out = Path.of("./");
+            cfg.classes = nob;
+            cfg.out = "./";
             cfg.mainClass = name;
             cfg.addToClasspath("Nob.jar");
         });

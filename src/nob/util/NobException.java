@@ -5,9 +5,11 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
+package nob.util;
+// comments here
 public class NobException extends Exception { 
     public NobException(String errorMessage) {
-        super(errorMessage);
+        super("[nob] " + errorMessage);
     }
 }
 

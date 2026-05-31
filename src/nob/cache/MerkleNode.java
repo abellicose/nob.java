@@ -12,9 +12,12 @@ import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.io.Serializable;
+import nob.util.NobException;
 
 public class MerkleNode implements Serializable {
-    public Path path;
+    private static final long serialVersionUID = 1L;
+
+    public String path;
     public long hash = 0;
     public List<MerkleNode> children = new ArrayList<>();
     public boolean leaf;
@@ -23,17 +26,22 @@ public class MerkleNode implements Serializable {
         return build(path, Files.getLastModifiedTime(path).toMillis());
     }
 
+    @Override
+    public String toString() {
+        return "MerkleNode{path='" + path + "', hash=" + hash + ", leaf=" + leaf + ", children=" + children.size() + "}";
+    }
+
     public static MerkleNode build(Path path, long mTime) throws Exception {
         MerkleNode node = new MerkleNode();
-        node.path = path;
+        node.path = path.toString();
         long maxMTime = 0;
 
         if (Files.isDirectory(path)) {
             for (Path child: Files.list(path).sorted().toList()) {
-                long childMTime = Files.getLastModifiedTime(child).toMillis();
-                node.children.add(build(child, childMTime));
-                if (childMTime > maxMTime) {
-                    maxMTime = childMTime;
+                MerkleNode childNode = build(child, Files.getLastModifiedTime(child).toMillis());
+                node.children.add(childNode);
+                if (childNode.hash > maxMTime) {
+                    maxMTime = childNode.hash;
                 }
             }
             node.hash = maxMTime;
@@ -48,7 +56,7 @@ public class MerkleNode implements Serializable {
         if (prev.hash == curr.hash) return;
 
         if (curr.leaf) {
-            changed.add(curr.path.toString());
+            changed.add(curr.path);
             return;
         }
 
@@ -58,39 +66,35 @@ public class MerkleNode implements Serializable {
             MerkleNode a = prev.children.get(i);
             MerkleNode b = curr.children.get(j);
             int cmp = a.path.compareTo(b.path);
-            if (cmp == 0) { diff(a, b, changed, deleted); }
+            if (cmp == 0) { diff(a, b, changed, deleted); i++; j++; }
             else if (cmp < 0) { collectLeaves(a.path, deleted); i++; }
             else { collectLeaves(b.path, changed); j++; }
         }
 
-        while (i < prev.children.size()) { collectLeaves(prev.children.get(i++).path.toString(), deleted); }
-        while (j < curr.children.size()) { collectLeaves(curr.children.get(j++).path.toString(), changed); }
+        while (i < prev.children.size()) { collectLeaves(prev.children.get(i++).path, deleted); }
+        while (j < curr.children.size()) { collectLeaves(curr.children.get(j++).path, changed); }
     }
 
-    public static void collectLeaves(Path path, List<String> collection) throws Exception {
+    static void collectLeaves(String pathDir, List<String> collection) throws Exception {
+        Path path = Path.of(pathDir);
         if (Files.isDirectory(path)) {
-            for (Path p: Files.list(path).toList()) { collectLeaves(p, collection); }
+            for (Path p: Files.list(path).toList()) { collectLeaves(p.toString(), collection); }
         } else {
-            collection.add(path.toString());
+            collection.add(pathDir);
         }
     }
 
-    public List<String> collectAllFiles() {
+    List<String> collectAllFiles() throws Exception {
         List<String> result = new ArrayList<>();
         getFilesFrom(path, result);
         return result;
     }
 
-    private void getFilesFrom(Path path, List<String> children) {
-        if (Files.isDirectory(path)) {
-            try (var stream = Files.list(path)) {
-                stream.forEach(childPath -> getFilesFrom(childPath, children));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }        
-        } else {
-            children.add(path.toString());
+    void getFilesFrom(String pathDir, List<String> children) throws Exception {
+        Path path = Path.of(pathDir);
+        try (var stream = Files.walk(path)) {
+            stream.filter(p -> !Files.isDirectory(p))
+                .forEach(p -> children.add(p.toString()));
         }
     }
 }
-

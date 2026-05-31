@@ -13,10 +13,13 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import nob.cache.BuildContext;
 import nob.cache.DiffResult;
+import nob.util.NobException;
 
 public class Scanner {
     
@@ -32,10 +35,10 @@ public class Scanner {
 
         Set<String> rebuildList = new HashSet<>();
         Map<String, String> changeMap = getCorrespondingClassFiles(diff.deleted(), ctx.out);
-        Set<String> files = new HashSet<>(changedMap.values);
+        Set<String> files = new HashSet<>(changeMap.values());
 
         // iterating through the class files of the files deleted (if exists)
-        for (String file: files.values()) {
+        for (String file: files) {
             // last existing methods of the deleted class
             Set<String> deps = ctx.methods.remove(file);
             if (deps == null) continue;
@@ -76,7 +79,7 @@ public class Scanner {
             Set<String> methods = new HashSet<>();
             Set<String> methodsCalled = new HashSet<>();
 
-            Scan sctx = new Scan(ctx.packageName, methods, methodsCalled);
+            ScanContext sctx = new ScanContext(ctx.packageName, methods, methodsCalled);
             scanFile(bytecode, sctx);
 
             if (!sctx.className.equals(file)) {
@@ -123,7 +126,7 @@ public class Scanner {
             if (prev != null) {
                 for (String method: prev) {
                     if (!curr.contains(method)) {
-                        List<String> deps = ctx.methodCalls.remove(method);
+                        Set<String> deps = ctx.methodCalls.remove(method);
                         if (deps == null) continue;
                         rebuildList.addAll(deps);
                     }
@@ -152,7 +155,7 @@ public class Scanner {
         cr.accept(cv, 0);
     }
 
-    static Map<String, String> getCorrespondingClassFiles(List<String> sourceFiles, Path out) {
+    static Map<String, String> getCorrespondingClassFiles(List<String> sourceFiles, Path out) throws Exception {
         Set<String> sourceSet = new HashSet<>();
         for (String sourceFile: sourceFiles) {
             sourceSet.add(sourceFile.replace(".java", ""));
@@ -169,6 +172,9 @@ public class Scanner {
                     classMap.put(noExt, outer);
                 }
             });
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new NobException("Could not find .class files");
         }
         return classMap;
     }
