@@ -10,6 +10,7 @@ package nob.cache;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import nob.api.CompileConfig;
+import nob.api.ProjectConfig;
 import nob.cache.MerkleNode;
 import java.io.FileInputStream;
 import java.io.ObjectInputStream;
@@ -22,12 +23,15 @@ import java.util.Set;
 import static nob.util.Util.*;
 
 public class BuildContext {
-    public final Path src;
-    public final Path dest;
-    public final Path out;
-    public final Path libs;
-    public final Path cacheFile;
-    public final String packageName;
+    public Path src = Path.of("src/");
+    public Path dest = Path.of("build/");
+    public Path out = Path.of("classes/");
+    public Path libs = Path.of("build/libs");
+    public Path jarOut = Path.of("build/jars");
+    public Path cacheFile;
+    public String packageName = null;
+    public String mainClass = null;
+    public String jarName = "out.jar";
 
     private static final int CACHE_VERSION = 1;
     public MerkleNode merkleCache = null;
@@ -38,17 +42,19 @@ public class BuildContext {
     // Methods and their dependencies
     public Map<String, Set<String>> methodCalls = new HashMap<>();
 
-    public BuildContext(CompileConfig cfg) {
+    public BuildContext(ProjectConfig cfg) {
         src = Path.of(cfg.src);
         dest = Path.of(cfg.dest);
         out = dest.resolve(cfg.classes);
         libs = Path.of(cfg.libs);
         cacheFile = dest.resolve("nob.cache");
         packageName = cfg.packageName.replace("\\.", "/");
+        mainClass = cfg.mainClass;
+        jarName = cfg.jarName;
     }
 
     @SuppressWarnings("unchecked")
-    public static BuildContext load(CompileConfig cfg) throws Exception {
+    public static BuildContext load(ProjectConfig cfg) throws Exception {
         cfg.validate();
         BuildContext ctx = new BuildContext(cfg);
 

@@ -28,15 +28,14 @@ import static nob.util.Util.*;
 
 public class Compile {
 
-    public static void compile(Consumer<CompileConfig> consumer) {
+    public static void compile(BuildContext ctx, Consumer<CompileConfig> consumer) {
         CompileConfig config = new CompileConfig();
         consumer.accept(config);
-        compile(config);
+        compile(ctx, config);
     } 
 
-    public static void compile(CompileConfig cfg) {
+    public static void compile(BuildContext ctx, CompileConfig cfg) {
         try {
-            BuildContext ctx = BuildContext.load(cfg);
             DiffResult diff = Stale.check(ctx);
             System.out.println("[nob] DiffList: " + diff);
             if (diff.changed().isEmpty() && diff.deleted().isEmpty()) { 
@@ -49,7 +48,8 @@ public class Compile {
             int n = 0; // to ensure infinite loops dont happen, just in case cuz im still building it
             while (!secondPass.isEmpty()) {
                 runJavac(secondPass, cfg, ctx);
-                if (n > 4) throw new NobException("SecondPass is running too many times");
+                secondPass = Scanner.scan(new DiffResult(secondPass, List.of()), ctx);
+                if (++n > 4) throw new NobException("SecondPass is running too many times");
             }
 
             ctx.save();
@@ -79,8 +79,6 @@ public class Compile {
         cpOpts.addAll(cfg.classpath);
         cmd.add("-cp");
         cmd.add(String.join(sep, cpOpts));
-
-        System.out.println("[nob] Libs Dir: " + ctx.libs + ", CP: " + (String.join(sep, cpOpts)));
 
         cmd.add("-d");
         cmd.add(ctx.out.toString());

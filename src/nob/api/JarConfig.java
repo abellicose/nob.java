@@ -12,19 +12,11 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.nio.file.Path;
+import nob.cache.BuildContext;
 
 public class JarConfig {
-    public String classes = "build/classes/";
-    public String out = "build/jars";
-    public String name = "out.jar";
-    public String mainClass = null;
-
-    public List<String> classpath = new ArrayList<>();
     public Map<String, String> mfAttribs = new HashMap<>();
-
-    public void addToClasspath(String... args) {
-        classpath.addAll(List.of(args));
-    }
+    public List<String> classpath = new ArrayList<>();
 
     public void addMfAttributes(String... args) {
         for (int i = 0; i < args.length; i+=2) {
@@ -32,10 +24,14 @@ public class JarConfig {
         }
     }
 
-    public String buildManifest() {
+    public void addToClasspath(String... cp) {
+        classpath.addAll(List.of(cp));
+    }
+
+    public String buildManifest(BuildContext ctx) {
         StringBuilder builder = new StringBuilder("Manifest-Version: 1.0\n");
 
-        if (mainClass != null) builder.append("Main-Class: " + mainClass + "\n");
+        if (ctx.mainClass != null) builder.append("Main-Class: " + ctx.mainClass + "\n");
         if (!classpath.isEmpty()) builder.append("Class-Path: " + String.join(" ", classpath) + "\n");
         mfAttribs.forEach((k, v) -> builder.append(k + ": " + v + "\n"));
         return builder.toString();

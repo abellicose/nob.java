@@ -15,28 +15,29 @@ import java.util.ArrayList;
 import java.util.function.Consumer;
 import nob.api.JarConfig;
 import nob.util.NobException;
+import nob.cache.BuildContext;
 
 import static nob.util.Util.*;
 
 public class BuildJar {
-    public static void buildJar(Consumer<JarConfig> consumer) {
+    public static void buildJar(BuildContext ctx, Consumer<JarConfig> consumer) {
         JarConfig config = new JarConfig();
         consumer.accept(config);
-        buildJar(config);
+        buildJar(ctx, config);
     }
 
-    public static void buildJar(JarConfig cfg) {
+    public static void buildJar(BuildContext ctx, JarConfig cfg) {
         Path manifestFile = null;
         try {
-            NOBmkdirIfNotExists(Path.of(cfg.out));
+            NOBmkdirIfNotExists(ctx.out);
 
-            manifestFile = createManifest(cfg);
+            manifestFile = createManifest(ctx, cfg);
 
             List<String> cmd = new ArrayList<>(
                     List.of("jar", "cfm",
-                        Path.of(cfg.out).resolve(cfg.name).toString(),
+                        ctx.jarOut.resolve(ctx.jarName).toString(),
                         manifestFile.toString(),
-                        "-C", cfg.classes, ".")
+                        "-C", ctx.out.toString(), ".")
                     );
 
         int exit = new ProcessBuilder(cmd).inheritIO().start().waitFor();
@@ -50,10 +51,10 @@ public class BuildJar {
         }
     }
 
-    static Path createManifest(JarConfig cfg) throws Exception {
+    static Path createManifest(BuildContext ctx, JarConfig cfg) throws Exception {
         Path manifest = Files.createTempFile("MANIFEST", ".MF");
         cfg.mfAttribs.put("Created-By", "Nob");
-        Files.writeString(manifest, cfg.buildManifest());
+        Files.writeString(manifest, cfg.buildManifest(ctx));
         return manifest;
     }
 }

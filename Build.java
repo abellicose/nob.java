@@ -5,23 +5,19 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-import nob.api.CompileConfig;
-import static nob.Nob.*;
-import java.nio.file.Path;
-
+import nob.Nob;
+ 
 public class Build {
     public static void main(String[] args) {
-        // goRebuildUrself("Build");
-
-        compile(cfg -> {
-            cfg.packageName = "nob";
-            cfg.libs = "build/libs";
+        Nob nob = new Nob() {{
+            packageName = "nob";
+            mainClass = "nob.Nob";
+            jarName = "Nob.jar";
+        }};
+        nob.compile(cfg -> {
         });
 
-        buildJar(cfg -> {
-            cfg.name = "Nob.jar";
-            cfg.mainClass = "nob.Nob";
+        nob.buildJar(cfg -> {
         });
     }
 }
-

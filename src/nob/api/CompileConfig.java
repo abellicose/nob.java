@@ -13,16 +13,9 @@ import java.util.ArrayList;
 import nob.util.NobException;
 
 public class CompileConfig {
-    public String packageName       = null;       // Required
-    public String src               = "src/";
-    public String dest              = "build/";
-    public String libs              = "libs/";    // relative to project root
-    public String classes           = "classes/"; // relative to dest
-
+    public List<String> flags = new ArrayList<>();
     public List<String> modules = new ArrayList<>();
     public List<String> classpath = new ArrayList<>();
-    public List<String> flags = new ArrayList<>();
-    public List<String> dirsToInclude = new ArrayList<>();
 
     public void addModules(String... mods) {
         modules.addAll(List.of(mods));
@@ -34,14 +27,5 @@ public class CompileConfig {
 
     public void addCompilerFlag(String... f) {
         flags.addAll(List.of(f));
-    }
-
-    /** Paths relative to srcDir */
-    public void addDirsToInclude(String... dirs) {
-        dirsToInclude.addAll(List.of(dirs));
-    }
-
-    public void validate() throws NobException {
-        if (packageName == null) throw new NobException("Must set CompileConfig.packageName");
     }
 }
