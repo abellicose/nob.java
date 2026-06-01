@@ -10,7 +10,7 @@ nob/build/
 
   [x] Graph.java            register tasks, topological sort, run(target)
 
-  []  Changes.java          merkle tree + diff + DiffResult — all in one file
+  [x]  Changes.java         merkle tree + diff + DiffResult — all in one file
 
   []  Scanner.java          all ASM code in one file (visitors, scan context, etc.)
 

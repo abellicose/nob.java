@@ -11,6 +11,8 @@ import nob.Nob;
 import nob.NobException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
+import java.util.HashSet;
 
 public class Context {
     Path source     = Path.of("src/");
@@ -25,6 +27,10 @@ public class Context {
     String jarName      = "out.jar";
     
     // merkle cache and shit here
+    MerkleNode merkleCache = null;
+    Map<String, Set<String>> ownedMethods = null;
+    Map<String, Set<String>> calledMethods = null;
+    Map<String, Set<String>> methodDependents = null;
 
     public static Context load(Nob nob) {
         if (nob.packageName == null) {
