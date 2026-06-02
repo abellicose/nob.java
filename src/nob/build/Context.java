@@ -8,6 +8,7 @@
 package nob.build;
 
 import nob.CompileConfig;
+import nob.JarConfig;
 import nob.Nob;
 import nob.NobException;
 import java.nio.file.Files;
@@ -38,6 +39,7 @@ public class Context {
     Map<String, Set<String>> methodDependents = new HashMap<>();
 
     public CompileConfig compileConfig = new CompileConfig();
+    public JarConfig jarConfig = new JarConfig();
 
     @SuppressWarnings("unchecked")
     public static Context load(Nob nob) {
