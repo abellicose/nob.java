@@ -8,6 +8,7 @@
 package nob.build;
 
 import nob.CompileConfig;
+import nob.JarConfig;
 import nob.Nob;
 import nob.NobException;
 import java.nio.file.Files;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.lang.StringBuilder;
 
 public class Context {
     Path source     = Path.of("src/");
@@ -38,6 +40,7 @@ public class Context {
     Map<String, Set<String>> methodDependents = new HashMap<>();
 
     public CompileConfig compileConfig = new CompileConfig();
+    public JarConfig jarConfig = new JarConfig();
 
     @SuppressWarnings("unchecked")
     public static Context load(Nob nob) {
@@ -80,6 +83,14 @@ public class Context {
             System.out.println("[nob] Could not write cache.");
             e.printStackTrace();
         }
+    }
+
+    public String manifest() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Manifest-Version: 1.0\n");
+        if (mainClass != null) sb.append("Main-Class: " + mainClass);
+        jarConfig.mfAttribs.forEach((k, v) -> sb.append(k + ": " + v + "\n"));
+        return sb.toString();
     }
 }
 

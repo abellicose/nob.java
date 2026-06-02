@@ -14,5 +14,6 @@ public class Build {
             jarName = "Nob.jar";
         }};
         nob.compile();
+        nob.jar();
     }
 }
