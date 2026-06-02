@@ -7,12 +7,17 @@
 
 package nob.build;
 
+import nob.CompileConfig;
 import nob.Nob;
 import nob.NobException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 
 public class Context {
     Path source     = Path.of("src/");
@@ -28,10 +33,13 @@ public class Context {
     
     // merkle cache and shit here
     MerkleNode merkleCache = null;
-    Map<String, Set<String>> ownedMethods = null;
-    Map<String, Set<String>> calledMethods = null;
-    Map<String, Set<String>> methodDependents = null;
+    Map<String, Set<String>> ownedMethods = new HashMap<>();
+    Map<String, Set<String>> calledMethods = new HashMap<>();
+    Map<String, Set<String>> methodDependents = new HashMap<>();
 
+    public CompileConfig compileConfig = new CompileConfig();
+
+    @SuppressWarnings("unchecked")
     public static Context load(Nob nob) {
         if (nob.packageName == null) {
             throw new NobException("Missing value for Nob.packageName");
@@ -40,15 +48,38 @@ public class Context {
         Context ctx = new Context();
         ctx.source =  Path.of(nob.sourceDir);
         ctx.build = Path.of(nob.buildDir);
-        ctx.out =  build.resolve(classesDir);
-        ctx.libs = Path.of(libsDir);
-        ctx.jarOut = build.resolve("jars/");
-        ctx.cacheFile = build.resolve("nob.cache");
+        ctx.out =  ctx.build.resolve(nob.classesDir);
+        ctx.libs = Path.of(nob.libsDir);
+        ctx.jarOut = ctx.build.resolve("jars/");
+        ctx.cacheFile = ctx.build.resolve("nob.cache");
         ctx.packageName = nob.packageName;
         ctx.mainClass = nob.mainClass;
         ctx.jarName = nob.jarName;
 
+        if (Files.exists(ctx.cacheFile)) {
+            try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(ctx.cacheFile))) {
+                ctx.merkleCache = (MerkleNode) in.readObject();
+                ctx.ownedMethods = (Map<String, Set<String>>) in.readObject();
+                ctx.calledMethods = (Map<String, Set<String>>) in.readObject();
+                ctx.methodDependents = (Map<String, Set<String>>) in.readObject();
+            } catch (Exception e) {
+                System.out.println("[nob] Could not read cache, full recompile.");
+            }
+        }
+
         return ctx;
+    }
+
+    public void save() {
+        try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(cacheFile))) {
+            out.writeObject(merkleCache);
+            out.writeObject(ownedMethods);
+            out.writeObject(calledMethods);
+            out.writeObject(methodDependents);
+        } catch (Exception e) {
+            System.out.println("[nob] Could not write cache.");
+            e.printStackTrace();
+        }
     }
 }
 

@@ -13,6 +13,8 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Stack;
+import nob.NobException;
 
 public class Graph {
     private Map<String, Task> registry = new HashMap<>();
@@ -34,7 +36,7 @@ public class Graph {
     public void run(Context ctx) {
         int queueSize = queue.size();
         if (queueSize == 0) {
-            throw new NobExcetion("No tasks queued for execution.");
+            throw new NobException("No tasks queued for execution.");
         }
 
         List<String> result = new ArrayList<>();
@@ -43,6 +45,7 @@ public class Graph {
         Stack<Node> stack = new Stack<>();
 
         for (String task: queue) {
+            if (visited.contains(task)) continue;
             stack.push(new Node(task, false));
             while (!stack.isEmpty()) {
                 Node curr = stack.pop();
@@ -69,9 +72,12 @@ public class Graph {
             }
         }
         for (String taskId : result) {
+            Logger.info("Running task: " + taskId);
             registry.get(taskId).execute(ctx);
+            Logger.info("Task " + taskId + " ended");
         }
     }
+
     record Node(String task, boolean done){}
 }
 

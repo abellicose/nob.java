@@ -11,13 +11,8 @@ public class Build {
     public static void main(String[] args) {
         Nob nob = new Nob() {{
             packageName = "nob";
-            mainClass = "nob.Nob";
             jarName = "Nob.jar";
         }};
-        nob.compile(cfg -> {
-        });
-
-        nob.buildJar(cfg -> {
-        });
+        nob.compile();
     }
 }

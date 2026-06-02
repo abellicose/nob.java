@@ -14,8 +14,11 @@ import java.util.ArrayList;
 import java.util.Stack;
 import java.util.Map;
 import java.util.HashMap;
+import nob.NobException;
+import java.io.Serializable;
 
 public class Changes {
+
     public static DiffResult diff(Context ctx) {
         List<String> changed = new ArrayList<>();
         List<String> removed = new ArrayList<>();
@@ -31,7 +34,7 @@ public class Changes {
     }
 }
 
-class MerkleNode {
+class MerkleNode implements Serializable {
     String path;
     long hash = 0;
     Map<String, MerkleNode> children = new HashMap<>();
@@ -53,6 +56,11 @@ class MerkleNode {
     }
 
     @Override
+    public String toString() {
+        return "MerkleNode{path='" + path + "', hash=" + hash + ", leaf=" + leaf + ", children=" + children.keySet() + "}";
+    }
+
+    @Override
     public int hashCode() {
         return path.hashCode();
     }
@@ -66,27 +74,35 @@ class MerkleNode {
     // hash of a node is the max mtime of its children
     // if child is leaf, hash is its mtime
     static MerkleNode build(String nodeDir) {
-        Path path = Path.of(nodeDir);
-        MerkleNode curr = new MerkleNode(nodeDir, Files.isRegularFile(path));
-        if (curr.leaf) {
-            curr.hash = Files.getLastModifiedTime(path).toMillis();
-            return curr;
-        }
+        try {
+            Path path = Path.of(nodeDir);
+            MerkleNode curr = new MerkleNode(nodeDir, Files.isRegularFile(path));
+            if (curr.leaf) {
+                curr.hash = Files.getLastModifiedTime(path).toMillis();
+                return curr;
+            }
 
-        long maxHash = 0;
-        for (Path childPath: Files.list(path).toList()) {
-            String childDir = childPath.toString();
-            MerkleNode child = build(childDir);
-            curr.children.put(childDir, child);
-            if (child.hash > maxHash) 
-                maxHash = child.hash;
+            long maxHash = 0;
+            for (Path childPath: Files.list(path).toList()) {
+                String childDir = childPath.toString();
+                MerkleNode child = build(childDir);
+                curr.children.put(childDir, child);
+                if (child.hash > maxHash) 
+                    maxHash = child.hash;
+            }
+            curr.hash = maxHash;
+            return curr;
+        } catch (Exception e) {
+            throw new NobException("File IO error while building node.", e);
         }
-        curr.hash = maxHash;
-        return curr;
     }
 
     static void diff(MerkleNode prev, MerkleNode curr, DiffResult diff) {
         if (prev.hash == curr.hash) return;
+
+        if (curr.children.size() == 0) {
+            diff.changed().add(curr.path);
+        }
 
         for (MerkleNode child: curr.children.values()) {
             MerkleNode twin = prev.children.remove(child.path);

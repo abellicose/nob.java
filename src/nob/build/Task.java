@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface Task {
     String id();
-    default List<String> dependsOn() { List.of() };
+    default List<String> dependsOn() { return List.of(); }
     void execute(Context ctx);
 }
 
