@@ -60,13 +60,11 @@ public class Nob {
         if (e.getCause() != null) e.getCause().printStackTrace();
         System.exit(1);
     }
-/*
 
     public void jar() {
         init();
         graph.enqueue("package");
         // Add packageTask to graph
     }
-*/
 }
 

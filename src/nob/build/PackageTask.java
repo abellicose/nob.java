@@ -7,6 +7,8 @@
 
 package nob.build;
 
+import nob.NobException;
+
 public class PackageTask implements Task{
     public String id() {
         return "package";
@@ -17,6 +19,7 @@ public class PackageTask implements Task{
     }
 
     public void execute(Context ctx) {
+        
     }
 }
 
