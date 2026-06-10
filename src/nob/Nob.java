@@ -13,6 +13,12 @@ import nob.build.PackageTask;
 import nob.build.Context;
 import java.util.function.Consumer;
 
+// temp
+import nob.build.Logger;
+import nob.deps.MavenRepository;
+import nob.deps.Dependency;
+import nob.deps.PomParser;
+
 public class Nob {
     public String sourceDir     = "src/";
     public String buildDir      = "build/";
@@ -25,11 +31,17 @@ public class Nob {
     public Context ctx          = null;
     public Graph graph          = new Graph();
 
+    public static boolean debug = false;
+
     public void init() {
         try {
             if (ctx != null) return;
-
             ctx = Context.load(this);
+
+            Dependency dep = new Dependency("org.apache.maven", "maven-parent", "45");
+            MavenRepository.fetchPom(dep, ctx);
+            PomParser.parse(dep, ctx);
+            
             graph.register(new CompileTask());
             graph.register(new PackageTask());
             Runtime.getRuntime().addShutdownHook(new Thread(() -> graph.run(ctx)));

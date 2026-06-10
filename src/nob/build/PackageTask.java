@@ -25,7 +25,7 @@ public class PackageTask implements Task{
     public void execute(Context ctx) {
         Path manifestFile = createManifest(ctx);
         List<String> cmd = new ArrayList<>(List.of("jar", "cfm", ctx.jarOut.resolve(ctx.jarName).toString(), manifestFile.toString(), "-C", ctx.out.toString(), "."));
-        Logger.info("Jar: " + cmd);
+        Logger.debug("JarCmd: " + cmd);
 
         try {
             int exit = new ProcessBuilder(cmd).inheritIO().start().waitFor();

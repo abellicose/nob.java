@@ -21,11 +21,11 @@ public class CompileTask implements Task {
 
         List<String> toRecompile = diff.changed();
         List<String> toDelete = diff.deleted();
-        Logger.info("Files to delete: " + toDelete);
+        Logger.debug("Files to delete: " + toDelete);
         int n = 0;
 
         while (!toRecompile.isEmpty()) {
-            Logger.info("Files to recompile: " + toRecompile);
+            Logger.debug("Files to recompile: " + toRecompile);
             runJavac(toRecompile, ctx);
             List<String> out = new ArrayList<>(toRecompile.size());
             Scanner.scan(toRecompile, toDelete, out, ctx);

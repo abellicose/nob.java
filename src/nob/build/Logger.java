@@ -6,9 +6,11 @@
  * ====================================== */
 
 package nob.build;
+import nob.Nob;
 
-class Logger {
-    static void info(String msg)  { System.out.println("[nob] " + msg); }
-    static void warn(String msg)  { System.out.println("[nob] WARN " + msg); }
-    static void error(String msg) { System.err.println("[nob] ERROR " + msg); }
+public class Logger {
+    public static void info(String msg)  { System.out.println("[nob] " + msg); }
+    public static void warn(String msg)  { System.out.println("[nob WARN] " + msg); }
+    public static void error(String msg) { System.err.println("[nob ERROR] " + msg); }
+    public static void debug(String msg) { if (Nob.debug) System.out.println("[nob DEBUG] " + msg); }
 }

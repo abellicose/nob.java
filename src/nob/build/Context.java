@@ -22,12 +22,14 @@ import java.io.ObjectOutputStream;
 import java.lang.StringBuilder;
 
 public class Context {
-    Path source     = Path.of("src/");
-    Path build      = Path.of("build/");
-    Path out        = Path.of("build/classes");
-    Path libs       = Path.of("build/libs");
-    Path jarOut     = Path.of("build/jars");
-    Path cacheFile  = Path.of("build/nob.cache");
+    Path source       = Path.of("src/");
+    Path build        = Path.of("build/");
+    Path out          = Path.of("build/classes");
+    Path libs         = Path.of("build/libs");
+    Path jarOut       = Path.of("build/jars");
+    Path cacheFile    = Path.of("build/nob.cache");
+
+    public Path globalCache  = Path.of(System.getProperty("user.home"), ".m2", "repository");
 
     String packageName  = null;
     String mainClass    = null;
@@ -88,7 +90,7 @@ public class Context {
     public String manifest() {
         StringBuilder sb = new StringBuilder();
         sb.append("Manifest-Version: 1.0\n");
-        if (mainClass != null) sb.append("Main-Class: " + mainClass);
+        if (mainClass != null) sb.append("Main-Class: " + mainClass + "\n");
         jarConfig.mfAttribs.forEach((k, v) -> sb.append(k + ": " + v + "\n"));
         return sb.toString();
     }
