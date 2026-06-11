@@ -5,7 +5,7 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob.deps;
+package nob.build;
 
 import java.util.Objects;
 import java.util.Set;

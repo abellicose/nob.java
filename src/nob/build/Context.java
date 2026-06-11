@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.lang.StringBuilder;
-import nob.deps.Dependency;
 
 public class Context {
     public Path source       = Path.of("src/");

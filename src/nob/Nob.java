@@ -7,18 +7,8 @@
 
 package nob;
 
-import nob.build.Graph;
-import nob.build.CompileTask;
-import nob.build.PackageTask;
-import nob.build.Context;
+import nob.build.*;
 import java.util.function.Consumer;
-
-// temp
-import nob.build.Logger;
-import nob.deps.Dependency;
-import nob.deps.DependencyResolver;
-import nob.deps.ProgressBar;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class Nob {
     public String sourceDir     = "src/";
@@ -38,8 +28,12 @@ public class Nob {
         try {
             if (ctx != null) return;
             ctx = Context.load(this);
+
+            ctx.deps.add(new Dependency("com.buession.springboot", "buession-springboot-boot", "3.0.1"));
+
             graph.register(new CompileTask());
             graph.register(new PackageTask());
+            graph.register(new ResolveTask());
             Runtime.getRuntime().addShutdownHook(new Thread(() -> graph.run(ctx)));
         } catch (NobException e) {
             handle(e);

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package nob.deps;
+package nob.build;
 
 import java.math.BigInteger;
 import java.util.ArrayDeque;

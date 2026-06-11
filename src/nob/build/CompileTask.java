@@ -16,6 +16,10 @@ public class CompileTask implements Task {
         return "compile";
     }
 
+    public List<String> dependsOn() { 
+        return List.of("resolve"); 
+    }
+
     public void execute(Context ctx) {
         DiffResult diff = Changes.diff(ctx);
 
