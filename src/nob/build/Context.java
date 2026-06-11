@@ -13,6 +13,8 @@ import nob.Nob;
 import nob.NobException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Map;
@@ -20,15 +22,15 @@ import java.util.HashMap;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.lang.StringBuilder;
+import nob.deps.Dependency;
 
 public class Context {
-    Path source       = Path.of("src/");
-    Path build        = Path.of("build/");
-    Path out          = Path.of("build/classes");
-    Path libs         = Path.of("build/libs");
-    Path jarOut       = Path.of("build/jars");
-    Path cacheFile    = Path.of("build/nob.cache");
-
+    public Path source       = Path.of("src/");
+    public Path build        = Path.of("build/");
+    public Path out          = Path.of("build/classes");
+    public Path libs         = Path.of("build/libs");
+    public Path jarOut       = Path.of("build/jars");
+    public Path cacheFile    = Path.of("build/nob.cache");
     public Path globalCache  = Path.of(System.getProperty("user.home"), ".m2", "repository");
 
     String packageName  = null;
@@ -43,6 +45,8 @@ public class Context {
 
     public CompileConfig compileConfig = new CompileConfig();
     public JarConfig jarConfig = new JarConfig();
+
+    public List<Dependency> deps = new ArrayList<>();
 
     @SuppressWarnings("unchecked")
     public static Context load(Nob nob) {

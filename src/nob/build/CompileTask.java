@@ -64,6 +64,7 @@ public class CompileTask implements Task {
         cmd.add(ctx.out.toString());
 
         cmd.addAll(ctx.compileConfig.compilerFlags);
+        cmd.add("-proc:none");
         cmd.addAll(files);
 
         try {

@@ -24,16 +24,17 @@ public class MavenRepository {
 
     public static Path fetchPom(Dependency dep, Context ctx) {
         Path pomPath = ctx.globalCache
-            .resolve(dep.groupId().replace(".", "/"))
-            .resolve(dep.artifactId())
-            .resolve(dep.version())
+            .resolve(dep.groupId.replace(".", "/"))
+            .resolve(dep.artifactId)
+            .resolve(dep.version)
             .resolve(fileName(dep, ".pom"));
 
         if (Files.isRegularFile(pomPath)) {
-            Logger.debug("POM found in cache.");
+            Logger.debug("POM " + pomPath.getFileName() + " found in cache.");
             return pomPath;
         }
 
+        Logger.debug("Downloading: " + pomPath.getFileName());
         downloadFile(pomPath, dep, ".pom");
 
         return pomPath;
@@ -41,16 +42,17 @@ public class MavenRepository {
 
     public static Path downloadJar(Dependency dep, Context ctx) {
         Path jarPath = ctx.globalCache
-            .resolve(dep.groupId().replace(".", "/"))
-            .resolve(dep.artifactId())
-            .resolve(dep.version())
+            .resolve(dep.groupId.replace(".", "/"))
+            .resolve(dep.artifactId)
+            .resolve(dep.version)
             .resolve(fileName(dep, ".jar"));
 
         if (Files.isRegularFile(jarPath)) {
-            Logger.debug("Jar found in cache.");
+            Logger.debug("Jar " + jarPath.getFileName() + " found in cache.");
             return jarPath;
         }
-
+        
+        Logger.debug("Downloading: " + jarPath.getFileName());
         downloadFile(jarPath, dep, ".jar");
 
         return jarPath;
@@ -77,11 +79,11 @@ public class MavenRepository {
     }
 
     private static URI getURI(Dependency dep, String ext) throws URISyntaxException {
-        return new URI(String.format("https://repo1.maven.org/maven2/%s/%s/%s/%s", dep.groupId().replace(".", "/"), dep.artifactId(), dep.version(), fileName(dep, ext)));
+        return new URI(String.format("https://repo1.maven.org/maven2/%s/%s/%s/%s", dep.groupId.replace(".", "/"), dep.artifactId, dep.version, fileName(dep, ext)));
     }
 
     private static String fileName(Dependency dep, String ext) {
-        return dep.artifactId() + "-" + dep.version() + ext;
+        return dep.artifactId + "-" + dep.version + ext;
     }
 }
 

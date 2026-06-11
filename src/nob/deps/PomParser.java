@@ -33,21 +33,17 @@ public class PomParser {
             "properties",            Set.of("project"),
             "dependencyManagement",  Set.of("project"),
             "dependencies",          Set.of("project", "dependencyManagement"),
-            "dependency",            Set.of("dependencies")
+            "dependency",            Set.of("dependencies"),
+            "exclusions",            Set.of("dependency"),
+            "exclusion",             Set.of("exclusions")
             );
 
-    public static PomData parse(Dependency dep, Context ctx) {
+    public static PomData parse(Path path, Set<String> exclusions, Context ctx) {
         try {
-
-        Path path = ctx.globalCache
-            .resolve(dep.groupId().replace(".", "/"))
-            .resolve(dep.artifactId())
-            .resolve(dep.version())
-            .resolve(fileName(dep, ".pom"));
 
         Map<String, String> properties = new HashMap<>();
         List<Dependency> dependencies = new ArrayList<>();
-        List<Dependency> depMgmt = new ArrayList<>();
+        Map<Dependency, String> depMgmt = new HashMap<>();
         Dependency parent = null;
 
         XMLInputFactory factory = XMLInputFactory.newInstance();
@@ -58,6 +54,7 @@ public class PomParser {
 
         Stack<Map<String, String>> data = new Stack<>();
         List<Dependency> deps = new ArrayList<>();
+        Set<String> excl = new HashSet<>();
         String currentTag = null;
         boolean save = false;
 
@@ -104,6 +101,9 @@ public class PomParser {
                         case "properties":
                             properties = new HashMap<>(d);
                             break;
+                        case "exclusion":
+                            excl.add(d.get("groupId") + ":" + d.get("artifactId"));
+                            break;
                         case "dependency":
                             String optional = d.get("optional");
                             if (optional != null && optional.equals("true")) 
@@ -113,12 +113,16 @@ public class PomParser {
                             if (scope != null && !scope.equals("compile"))
                                 break;
 
-                            deps.add(new Dependency(d.get("groupId"), d.get("artifactId"), d.get("version")));
+                            if (!exclusions.contains(d.get("groupId") + ":" + d.get("artifactId"))) {
+                                deps.add(new Dependency(d.get("groupId"), d.get("artifactId"), d.get("version"), excl));
+                            }
+                            excl = new HashSet<>();
                             break;
                         case "dependencies":
                             if (stack.peek().equals("dependencyManagement")) {
-                                stack.pop();
-                                depMgmt = deps;
+                                for (Dependency dep: deps) {
+                                    depMgmt.put(dep, dep.version);
+                                }
                             } else {
                                 dependencies = deps;
                             }
@@ -130,18 +134,11 @@ public class PomParser {
                     break;
             }
         }
-        PomData result = new PomData(parent, properties, deps, depMgmt);
-        Logger.debug("Pom Parsing Result: " + result);
-        return result;
+        return new PomData(parent, properties, dependencies, depMgmt);
 
         } catch (Exception e) {
-            throw new NobException("Couldn't parse pom file for " + dep, e);
+            throw new NobException("Couldn't parse pom file for " + path.getFileName(), e);
         }
-    }
-
-    private static String fileName(Dependency dep, String ext) {
-        return dep.artifactId() + "-" + dep.version() + ext;
     }
 }
 
-record PomData(Dependency parent, Map<String, String> properties, List<Dependency> deps, List<Dependency> managements) {}

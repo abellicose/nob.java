@@ -15,9 +15,10 @@ import java.util.function.Consumer;
 
 // temp
 import nob.build.Logger;
-import nob.deps.MavenRepository;
 import nob.deps.Dependency;
-import nob.deps.PomParser;
+import nob.deps.DependencyResolver;
+import nob.deps.ProgressBar;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Nob {
     public String sourceDir     = "src/";
@@ -37,11 +38,6 @@ public class Nob {
         try {
             if (ctx != null) return;
             ctx = Context.load(this);
-
-            Dependency dep = new Dependency("org.apache.maven", "maven-parent", "45");
-            MavenRepository.fetchPom(dep, ctx);
-            PomParser.parse(dep, ctx);
-            
             graph.register(new CompileTask());
             graph.register(new PackageTask());
             Runtime.getRuntime().addShutdownHook(new Thread(() -> graph.run(ctx)));
