@@ -14,6 +14,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Stack;
 import java.util.ArrayList;
+import java.util.concurrent.Flow;
+import java.util.concurrent.CompletionStage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.ByteBuffer;
@@ -25,14 +27,25 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLInputFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.lang.Runtime;
 import nob.NobException;
-import java.util.concurrent.Flow;
-import java.util.concurrent.CompletionStage;
 
 import static javax.xml.stream.XMLStreamConstants.*;
 
 public class ResolveTask implements Task {
+    // assuming there's only one instance of this task, might have to make them object specific and/or use ThreadLocal who knows
     private static final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private static final ScheduledExecutorService scheduledService = Executors.newSingleThreadScheduledExecutor();
+    private static final ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1); 
+    private static final ExecutorCompletionService service = new ExecutorCompletionService(pool);
+    public static final ConcurrentHashMap<String, Float> progress = new ConcurrentHashMap<>();
 
     public String id() {
         return "resolve";
@@ -92,16 +105,25 @@ public class ResolveTask implements Task {
 
         Logger.info("Downloading jars...");
 
+        scheduledService.scheduleWithFixedDelay(this::render, 0L, 100L, TimeUnit.MILLISECONDS);
+        
         for (Dependency dep: resolved) {
-            Path path = downloadJar(dep, ctx);
-            try {
-                Path target = ctx.libs.resolve(path.getFileName());
-                if (!Files.exists(target)) {
-                    Files.copy(path, ctx.libs.resolve(path.getFileName()));
-                }
-            } catch (Exception e) {
-                throw new NobException("Failed to copy jar from global cache to local libs folder", e);
+            service.submit(() -> {
+                downloadAndCopy(dep, ctx);
+                return null;
+            });
+        }
+
+        try {
+            for (int i = 0; i < resolved.size(); i++) {
+                service.take().get();
             }
+        } catch (Exception e) {
+            throw (NobException) e.getCause();
+        } finally {
+            pool.shutdown();
+            scheduledService.shutdown();
+            render();
         }
     }
 
@@ -123,40 +145,47 @@ public class ResolveTask implements Task {
         return pomPath;
     }
 
-    private Path downloadJar(Dependency dep, Context ctx) {
+    private void downloadAndCopy(Dependency dep, Context ctx) {
+        String fileName = fileName(dep, ".jar");
         Path jarPath = ctx.globalCache
             .resolve(dep.groupId.replace(".", "/"))
             .resolve(dep.artifactId)
             .resolve(dep.version)
-            .resolve(fileName(dep, ".jar"));
-
-        if (Files.isRegularFile(jarPath)) {
-            Logger.debug("Jar " + jarPath.getFileName() + " found in cache.");
-            return jarPath;
-        }
+            .resolve(fileName);
         
-        HttpResponse<Path> response;
+        if (!Files.isRegularFile(jarPath)) {
+            HttpResponse<Path> response;
+
+            try {
+                Files.createDirectories(jarPath.getParent());
+
+                URI fileURI = getURI(dep, ".jar");
+                HttpRequest req = HttpRequest.newBuilder().uri(fileURI).GET().build();
+                response = client.send(req, info -> {
+                    long totalSize = info.headers().firstValueAsLong("Content-Length").orElse(1);
+                    return new DownloadSubscriber(fileName, totalSize, HttpResponse.BodySubscribers.ofFile(jarPath));
+                });
+
+            } catch (Exception e) {
+                throw new NobException("Failed to send fetch request for " + dep, e);
+            }
+
+            int status = response.statusCode();
+            if (status == 404) throw new NobException("Dependency not found: " + dep);
+            if (status == 429) throw new NobException("Rate limited by Maven Central");
+            if (status / 100 != 2) throw new NobException("Failed to fetch " + dep + " status: " + status);
+        } else {
+            Logger.debug("Jar " + fileName + " found in cache.");
+        }
 
         try {
-            Files.createDirectories(jarPath.getParent());
-
-            URI fileURI = getURI(dep, ".jar");
-            HttpRequest req = HttpRequest.newBuilder().uri(fileURI).GET().build();
-            response = client.send(req, info -> {
-                long totalSize = info.headers().firstValueAsLong("Content-Length").orElse(1);
-                return new DownloadSubscriber(jarPath.getFileName().toString(), totalSize, HttpResponse.BodySubscribers.ofFile(jarPath));
-            });
-
+            Path target = ctx.libs.resolve(fileName);
+            if (!Files.exists(target)) {
+                Files.copy(jarPath, ctx.libs.resolve(fileName));
+            }
         } catch (Exception e) {
-            throw new NobException("Failed to send fetch request for " + dep, e);
+            throw new NobException("Failed to copy jar from global cache to local libs folder", e);
         }
-
-        int status = response.statusCode();
-        if (status == 404) throw new NobException("Dependency not found: " + dep);
-        if (status == 429) throw new NobException("Rate limited by Maven Central");
-        if (status / 100 != 2) throw new NobException("Failed to fetch " + dep + " status: " + status);
-
-        return jarPath;
     }
 
     // resolve specific function
@@ -353,6 +382,57 @@ public class ResolveTask implements Task {
             throw new NobException("Couldn't parse pom file for " + path.getFileName(), e);
         }
     }
+
+    private int lastActiveLineCount = 0;
+
+    public void render() {
+        StringBuilder out = new StringBuilder();
+        int previousCount = lastActiveLineCount;
+
+        synchronized (progress) {
+            for (Map.Entry<String, Float> entry : progress.entrySet().stream().sorted((a, b) -> Float.compare(b.getValue(), a.getValue())).toList()) {
+                out.append(line(entry.getKey(), entry.getValue()));
+                if (entry.getValue() >= 100F) {
+                    progress.remove(entry.getKey());
+                }
+            }
+
+            lastActiveLineCount = progress.size();
+        }
+
+        out.insert(0, "\033[1A".repeat(previousCount));
+        System.out.print(out);
+        System.out.flush();
+    }
+
+    private String line(String name, float pct) {
+        int barWidth = 50;
+        int filled = Math.round(barWidth * pct / 100F);
+
+        StringBuilder bar = new StringBuilder();
+        bar.append('[');
+        for (int i = 0; i < barWidth; i++) {
+            bar.append(i < filled ? '#' : '-');
+        }
+        bar.append(']');
+
+        return String.format("%-50s %s %6.2f%%\n", name, bar, pct);
+    }
+
+    private String truncate(String s, int max) {
+        return s.length() > max ? s.substring(0, max - 1) + "…" : s;
+    }
+
+    private int terminalWidth() {
+        try {
+            Process p = new ProcessBuilder("tput", "cols").redirectInput(ProcessBuilder.Redirect.INHERIT).start();
+            String cols = new String(p.getInputStream().readAllBytes()).trim();
+            p.waitFor();
+            return cols.isEmpty() ? 80 : Integer.parseInt(cols);
+        } catch (Exception e) {
+            return 80;
+        }
+    }
 }
 
 class PomData {
@@ -391,7 +471,6 @@ class DownloadSubscriber implements HttpResponse.BodySubscriber<Path> {
     }
 
     public void onComplete() {
-        System.out.println("\r" + name + " [====================] 100%");
         downstream.onComplete();
     } 
 
@@ -401,10 +480,8 @@ class DownloadSubscriber implements HttpResponse.BodySubscriber<Path> {
 
     public void onNext(List<ByteBuffer> buffers) {
         received += buffers.stream().mapToLong(ByteBuffer::remaining).sum();
-        int pct = (int)(received * 100 / totalSize);
-        int filled = pct * 20 / 100;
-        String bar = "=".repeat(filled) + "-".repeat(20 - filled);
-        System.out.print("\r" + name + " [" + bar + "] " + pct + "%");
+        float pct = received * 100F / totalSize;
+        ResolveTask.progress.put(name, pct);
         downstream.onNext(buffers);
     }
 
