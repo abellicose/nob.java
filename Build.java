@@ -13,6 +13,7 @@ public class Build {
             packageName = "nob";
             jarName = "Nob.jar";
         }};
+        nob.debug = true;
         nob.compile();
         nob.jar();
     }

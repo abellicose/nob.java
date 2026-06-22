@@ -12,6 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.FileVisitResult;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Stack;
 import java.util.Map;
 import java.util.HashMap;
@@ -22,6 +25,7 @@ import java.util.HashSet;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
+import java.io.IOException;
 import nob.NobException;
 
 import static org.objectweb.asm.Opcodes.*;
@@ -62,7 +66,7 @@ public class CompileTask implements Task {
         }
     }
 
-    static void runJavac(List<String> files, Context ctx) {
+    void runJavac(List<String> files, Context ctx) {
         List<String> cmd = new  ArrayList<>(List.of("javac"));
 
         if (!ctx.compileConfig.modules.isEmpty()) {
@@ -96,7 +100,7 @@ public class CompileTask implements Task {
         }
     }
 
-    public static DiffResult diff(Context ctx) {
+    public DiffResult diff(Context ctx) {
         List<String> changed = new ArrayList<>();
         List<String> removed = new ArrayList<>();
         MerkleNode curr = MerkleNode.build(ctx.source.toString());
@@ -110,6 +114,9 @@ public class CompileTask implements Task {
         return diff;
     }
 
+    // deletes deleted class files, opens recompiled class files, scans them, creates the dep tree and cache stuff, saves them
+    // finds the method signatures that changed, recompiles classes (saves to out) that used the old method signature.
+    // even i dont remember how this works anymore
     private void scan(List<String> changed, List<String> deleted, List<String> out, Context ctx) {
         try {
         // Start Preprocessing Files
@@ -346,6 +353,12 @@ class MerkleNode implements Serializable {
         this.leaf = leaf;
     }
 
+    public MerkleNode(String path, long hash, boolean leaf) {
+        this.path = path;
+        this.hash = hash;
+        this.leaf = leaf;
+    }
+
     public MerkleNode() {
     }
 
@@ -367,6 +380,7 @@ class MerkleNode implements Serializable {
 
     // hash of a node is the max mtime of its children
     // if child is leaf, hash is its mtime
+/*
     static MerkleNode build(String nodeDir) {
         try {
             Path path = Path.of(nodeDir);
@@ -389,6 +403,50 @@ class MerkleNode implements Serializable {
         } catch (Exception e) {
             throw new NobException("File IO error while building node.", e);
         }
+    }
+*/
+
+    static MerkleNode build(String nodeDir) {
+        Stack<MerkleNode> stack = new Stack<>();
+
+        try {
+            Files.walkFileTree(Path.of(nodeDir), new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    long hash = attrs.lastModifiedTime().toMillis();
+                    String path = file.toString();
+                    MerkleNode prev = stack.peek();
+                    prev.children.put(path, new MerkleNode(path, hash, true));
+                    if (hash > prev.hash) {
+                        prev.hash = hash; 
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    stack.push(new MerkleNode(dir.toString(), false));
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException ex) throws IOException {
+                    if (stack.size() != 1) {
+                        MerkleNode child = stack.pop();
+                        MerkleNode parent = stack.peek();
+                        parent.children.put(dir.toString(), child);
+                        if (child.hash > parent.hash) {
+                            parent.hash = child.hash; 
+                        }
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+
+        } catch (IOException e) {
+            throw new NobException("File IO error while building node.", e);
+        }
+        return stack.pop();
     }
 
     static void diff(MerkleNode prev, MerkleNode curr, DiffResult diff) {

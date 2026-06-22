@@ -1,8 +1,11 @@
-- Logging on Separate Thread
 - Replace all abstractions with manual NIO
-- Multi Thread Downloads
 - Replace ProcessBuilder with inline code manipulation
 - Replace JAR building with NIO
 - Replace Downloading with NIO - Build my own HTTPClient
 - Make it plugin focused like gradle
 - Update cache for each class after each file is compiled if possible
+
+if one shot, it stays cold. if interactive, it opens and stays open, during interactive one shot talks to hot vm, otherwise default
+
+[x] Multi Thread Downloads
+[x] Logging on Separate Thread
