@@ -22,11 +22,15 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Deque;
+import java.util.ArrayDeque;
+import java.util.Collection;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import java.io.IOException;
 import nob.NobException;
+import nob.Task;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -103,14 +107,18 @@ public class CompileTask implements Task {
     public DiffResult diff(Context ctx) {
         List<String> changed = new ArrayList<>();
         List<String> removed = new ArrayList<>();
-        MerkleNode curr = MerkleNode.build(ctx.source.toString());
         DiffResult diff = new DiffResult(changed, removed);
-        if (ctx.merkleCache == null) {
-            MerkleNode.collectLeaves(curr, changed);
+
+        FileTree curr = FileTree.build(ctx.source.toString());
+        System.out.println(curr);
+
+        if (ctx.cachedTree == null) {
+            curr.collectLeaves(changed);
         } else {
-            MerkleNode.diff(ctx.merkleCache, curr, diff);
+            FileTree.diff(ctx.cachedTree, curr, diff);
         }
-        ctx.merkleCache = curr;
+
+        ctx.cachedTree = curr;
         return diff;
     }
 
@@ -242,11 +250,6 @@ public class CompileTask implements Task {
 
             Set<String> newMethods = entry.getValue();
 
-/*
-            for (String method: newMethods) {
-                !oldMethods.remove(method); // !oldMethods.contains(method), new method
-            }
-*/
             oldMethods.removeAll(newMethods);
 
             for (String method: oldMethods) { // deleted methods
@@ -333,110 +336,111 @@ public class CompileTask implements Task {
     record SourcePath(String classDir, String extLess) {}
 }
 
-// Creates a tree that makes it easy and fast to compare and find changed files
-// Overengineered? Maybe. I learned. Worth it.
-class MerkleNode implements Serializable {
-    String path;
-    long hash = 0;
-    Map<String, MerkleNode> children = new HashMap<>();
-    boolean leaf = false;
+// FileSystem cache, exists so that we dont need to call os to walk again and again and again
+// Also a MerkleTree
+public class FileEntry implements Serializable {
+    public String pathStr;
+    public long mTime;
+    private Set<String> children;
 
-    public MerkleNode(String path, long hash, Map<String, MerkleNode> children, boolean leaf) {
-        this.path = path;
-        this.hash = hash;
+    transient public Path path;
+
+    public FileEntry(Path path, long mTime, Set<String> children) {
+        this.pathStr = path.toString();
+        this.mTime =  mTime;
         this.children = children;
-        this.leaf = leaf;
-    }
-
-    public MerkleNode(String path, boolean leaf) {
         this.path = path;
-        this.leaf = leaf;
+    }
+    
+    public Path path() {
+        if (path == null) path = Path.of(pathStr);
+        return path;
     }
 
-    public MerkleNode(String path, long hash, boolean leaf) {
-        this.path = path;
-        this.hash = hash;
-        this.leaf = leaf;
+    public boolean isFile() { 
+        return children == null; 
     }
 
-    public MerkleNode() {
+    public Set<String> children() {
+        if (children == null) return Set.of();
+        return children;
     }
 
-    @Override
-    public String toString() {
-        return "MerkleNode{path='" + path + "', hash=" + hash + ", leaf=" + leaf + ", children=" + children.keySet() + "}";
+    public static FileEntry file(Path path, long mTime) {
+        return new FileEntry(path, mTime, null);
     }
 
-    @Override
-    public int hashCode() {
-        return path.hashCode();
+    public static FileEntry dir(Path path, long mTime) {
+        return new FileEntry(path, mTime, new HashSet<>());
+    }
+}
+
+class FileTree implements Serializable {
+    public FileEntry root;
+    private Map<String, FileEntry> entries = new HashMap<>();
+
+    public FileTree(FileEntry root, Map<String, FileEntry> entries) {
+        this.root = root;
+        this.entries = entries;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (!(o instanceof MerkleNode)) return false;
-        return path.equals(((MerkleNode) o).path);
+    public boolean exists(String entry) {
+        return entries.containsKey(entry);
     }
 
-    // hash of a node is the max mtime of its children
-    // if child is leaf, hash is its mtime
-/*
-    static MerkleNode build(String nodeDir) {
-        try {
-            Path path = Path.of(nodeDir);
-            MerkleNode curr = new MerkleNode(nodeDir, Files.isRegularFile(path));
-            if (curr.leaf) {
-                curr.hash = Files.getLastModifiedTime(path).toMillis();
-                return curr;
-            }
+    public FileEntry get(String entry) {
+        return entries.get(entry);
+    }
 
-            long maxHash = 0;
-            for (Path childPath: Files.list(path).toList()) {
-                String childDir = childPath.toString();
-                MerkleNode child = build(childDir);
-                curr.children.put(childDir, child);
-                if (child.hash > maxHash) 
-                    maxHash = child.hash;
-            }
-            curr.hash = maxHash;
-            return curr;
-        } catch (Exception e) {
-            throw new NobException("File IO error while building node.", e);
+    public FileEntry remove(String entry) {
+        return entries.remove(entry);
+    }
+
+    public void collectLeaves(String path, List<String> result) {
+        FileEntry entry = entries.get(path);
+        if (entry.isFile()) {
+            result.add(path);
+            return;
+        }
+
+        for (String childPath: entry.children()) {
+            collectLeaves(childPath, result);
         }
     }
-*/
 
-    static MerkleNode build(String nodeDir) {
-        Stack<MerkleNode> stack = new Stack<>();
+    public static FileTree build(String root) {
+        Map<String, FileEntry> entries = new HashMap<>();
+        Deque<FileEntry> stack = new ArrayDeque<>();
 
         try {
-            Files.walkFileTree(Path.of(nodeDir), new SimpleFileVisitor<Path>() {
+            Files.walkFileTree(Path.of(root), new SimpleFileVisitor<Path>() {
                 @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    long hash = attrs.lastModifiedTime().toMillis();
-                    String path = file.toString();
-                    MerkleNode prev = stack.peek();
-                    prev.children.put(path, new MerkleNode(path, hash, true));
-                    if (hash > prev.hash) {
-                        prev.hash = hash; 
-                    }
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    FileEntry d = FileEntry.dir(dir, attrs.lastModifiedTime().toMillis());
+                    stack.push(d);
+                    entries.put(dir.toString(), d);
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    stack.push(new MerkleNode(dir.toString(), false));
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    long mTime = attrs.lastModifiedTime().toMillis();
+                    FileEntry parent = stack.peek();
+                    if (mTime > parent.mTime) {
+                        parent.mTime = mTime;
+                    }
+                    FileEntry f = FileEntry.file(file, mTime);
+                    entries.put(file.toString(), f);
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
                 public FileVisitResult postVisitDirectory(Path dir, IOException ex) throws IOException {
-                    if (stack.size() != 1) {
-                        MerkleNode child = stack.pop();
-                        MerkleNode parent = stack.peek();
-                        parent.children.put(dir.toString(), child);
-                        if (child.hash > parent.hash) {
-                            parent.hash = child.hash; 
+                    if (stack.size() > 1) {
+                        FileEntry child = stack.pop();
+                        FileEntry parent = stack.peek();
+                        if (child.mTime > parent.mTime) {
+                            parent.mTime = child.mTime; 
                         }
                     }
                     return FileVisitResult.CONTINUE;
@@ -446,40 +450,30 @@ class MerkleNode implements Serializable {
         } catch (IOException e) {
             throw new NobException("File IO error while building node.", e);
         }
-        return stack.pop();
+
+        return new FileTree(stack.pop(), entries);
     }
 
-    static void diff(MerkleNode prev, MerkleNode curr, DiffResult diff) {
-        if (prev.hash == curr.hash) return;
+    static void diff(FileTree prev, FileTree curr, DiffResult diff) {
+        if (prev.root.mTime == curr.root.mTime) return;
 
-        if (curr.children.size() == 0) {
-            diff.changed().add(curr.path);
-        }
+        Deque<String> deque = new ArrayDeque<>();
+        deque.addAll(curr.root.children());
+        while (!deque.isEmpty()) {
+            String currStr = deque.pop();
+            FileEntry child = curr.get(currStr); // cannot be null
+            FileEntry twin = prev.remove(currStr); // can be null
 
-        for (MerkleNode child: curr.children.values()) {
-            MerkleNode twin = prev.children.remove(child.path);
-            if (twin == null) { // newly added
-                collectLeaves(child, diff.changed());
-                continue;
+            if (twin == null || twin.mTime != child.mTime) { // added/changed
+                if (child.isFile()) {
+                    diff.changed().add(currStr);
+                } else {
+                    deque.addAll(child.children());
+                }
             } 
-
-            if (twin.hash != child.hash) { // changed
-                diff(twin, child, diff);
-            }
         }
-
-        for (MerkleNode removed: prev.children.values()) { // doesnt exist now
-            collectLeaves(removed, diff.deleted());
-        }
-    }
-
-    static void collectLeaves(MerkleNode node, List<String> leaves) {
-        if (node.leaf) {
-            leaves.add(node.path);
-            return;
-        }
-        for (MerkleNode child: node.children.values())
-            collectLeaves(child, leaves);
+        
+        diff.removed().addAll(prev.entries.keySet());
     }
 }
 

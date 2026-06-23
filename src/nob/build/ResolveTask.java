@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.lang.Runtime;
 import nob.NobException;
+import nob.Task;
 
 import static javax.xml.stream.XMLStreamConstants.*;
 

@@ -39,7 +39,7 @@ public class Context {
     String jarName      = "out.jar";
     
     // merkle cache and shit here
-    MerkleNode merkleCache = null;
+    FileTree cachedTree = null;
     Map<String, Set<String>> ownedMethods = new HashMap<>();
     Map<String, Set<String>> calledMethods = new HashMap<>();
     Map<String, Set<String>> methodDependents = new HashMap<>();
@@ -71,7 +71,7 @@ public class Context {
 
         if (Files.exists(ctx.cacheFile)) {
             try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(ctx.cacheFile))) {
-                ctx.merkleCache = (MerkleNode) in.readObject();
+                ctx.cachedTree = (FileTree) in.readObject();
                 ctx.ownedMethods = (Map<String, Set<String>>) in.readObject();
                 ctx.calledMethods = (Map<String, Set<String>>) in.readObject();
                 ctx.methodDependents = (Map<String, Set<String>>) in.readObject();
@@ -85,7 +85,7 @@ public class Context {
 
     public void save() {
         try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(cacheFile))) {
-            out.writeObject(merkleCache);
+            out.writeObject(cachedTree);
             out.writeObject(ownedMethods);
             out.writeObject(calledMethods);
             out.writeObject(methodDependents);

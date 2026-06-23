@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import nob.Task;
 
 public class PackageTask implements Task{
     public String id() {

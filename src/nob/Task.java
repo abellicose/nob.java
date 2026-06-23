@@ -5,8 +5,9 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob.build;
+package nob;
 
+import nob.build.*;
 import java.util.List;
 
 public interface Task {

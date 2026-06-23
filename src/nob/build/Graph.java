@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Stack;
 import nob.NobException;
+import nob.Task;
 
 public class Graph {
     private Map<String, Task> registry = new HashMap<>();

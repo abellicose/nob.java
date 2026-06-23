@@ -33,10 +33,15 @@ public class Nob {
 
             graph.register(new CompileTask());
             graph.register(new PackageTask());
-            graph.register(new ResolveTask());
             Runtime.getRuntime().addShutdownHook(new Thread(() -> graph.run(ctx)));
         } catch (NobException e) {
             handle(e);
+        }
+    }
+
+    public void use(Plugin... plugins) {
+        for (int i = 0; i < plugins.length; i++) {
+            plugins[i].apply(graph);
         }
     }
 
