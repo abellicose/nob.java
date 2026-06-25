@@ -26,27 +26,30 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 
 public class Context {
-    Path source       = Path.of("src/");
-    Path build        = Path.of("build/");
-    Path out          = Path.of("build/classes");
-    Path libs         = Path.of("build/libs");
-    Path jarOut       = Path.of("build/jars");
-    Path cacheFile    = Path.of("build/nob.cache");
-    Path globalCache  = Path.of(System.getProperty("user.home"), ".m2", "repository");
+    Path source         = Path.of("src/");
+    Path build          = Path.of("build/");
+    Path out            = Path.of("build/classes");
+    Path libs           = Path.of("build/libs");
+    Path jarOut         = Path.of("build/jars");
+    Path cacheFile      = Path.of("build/nob.cache");
+    Path globalCache    = Path.of(System.getProperty("user.home"), ".m2", "repository");
 
     String packageName  = null;
     String mainClass    = null;
     String jarName      = "out.jar";
     
-    // merkle cache and shit here
+    // cache and shit here
     FileTree cachedTree = null;
-    Map<String, Set<String>> ownedMethods = new HashMap<>();
-    Map<String, Set<String>> calledMethods = new HashMap<>();
-    Map<String, Set<String>> methodDependents = new HashMap<>();
+    FileTree newTree    = null;
+    Map<String, Set<String>> sourceToBinaries = new HashMap<>();
+    Map<String, Set<String>> sourceToDeclaredMethods = new HashMap<>();            // source (class and subclasses) and methods it owns
+    Map<String, Set<String>> sourceToCalledMethods = new HashMap<>();           // source (class and subclasses) and methods it calls
+    Map<String, Set<String>> methodToCallerBinaries = new HashMap<>();        // methods and specific classes that depend on those methods
 
     ExecutorService cpuPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1);
     ExecutorService ioPool = Executors.newFixedThreadPool(50);
 
+    // gotta kick these out
     public CompileConfig compileConfig = new CompileConfig();
     public JarConfig jarConfig = new JarConfig();
 
@@ -72,9 +75,10 @@ public class Context {
         if (Files.exists(ctx.cacheFile)) {
             try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(ctx.cacheFile))) {
                 ctx.cachedTree = (FileTree) in.readObject();
-                ctx.ownedMethods = (Map<String, Set<String>>) in.readObject();
-                ctx.calledMethods = (Map<String, Set<String>>) in.readObject();
-                ctx.methodDependents = (Map<String, Set<String>>) in.readObject();
+                ctx.sourceToBinaries = (Map<String, Set<String>>) in.readObject();
+                ctx.sourceToDeclaredMethods = (Map<String, Set<String>>) in.readObject();
+                ctx.sourceToCalledMethods = (Map<String, Set<String>>) in.readObject();
+                ctx.methodToCallerBinaries = (Map<String, Set<String>>) in.readObject();
             } catch (Exception e) {
                 System.out.println("[nob] Could not read cache, full recompile.");
             }
@@ -86,9 +90,10 @@ public class Context {
     public void save() {
         try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(cacheFile))) {
             out.writeObject(cachedTree);
-            out.writeObject(ownedMethods);
-            out.writeObject(calledMethods);
-            out.writeObject(methodDependents);
+            out.writeObject(sourceToBinaries);
+            out.writeObject(sourceToDeclaredMethods);
+            out.writeObject(sourceToCalledMethods);
+            out.writeObject(methodToCallerBinaries);
         } catch (Exception e) {
             System.out.println("[nob] Could not write cache.");
             e.printStackTrace();

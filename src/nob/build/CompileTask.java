@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Deque;
 import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.function.Consumer;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
@@ -48,11 +49,11 @@ public class CompileTask implements Task {
 
         List<String> toRecompile = diff.changed();
         List<String> toDelete = diff.deleted();
-        Logger.debug("Files to delete: " + toDelete);
+        Logger.info("Files to delete: " + toDelete);
         int n = 0;
 
         while (!toRecompile.isEmpty()) {
-            Logger.debug("Files to recompile: " + toRecompile);
+            Logger.info("Files to recompile: " + toRecompile);
             runJavac(toRecompile, ctx);
             List<String> out = new ArrayList<>(toRecompile.size());
             scan(toRecompile, toDelete, out, ctx);
@@ -113,12 +114,12 @@ public class CompileTask implements Task {
         System.out.println(curr);
 
         if (ctx.cachedTree == null) {
-            curr.collectLeaves(changed);
+            curr.collectLeaves(ctx.source.toString(), changed);
         } else {
             FileTree.diff(ctx.cachedTree, curr, diff);
         }
 
-        ctx.cachedTree = curr;
+        ctx.newTree = curr;
         return diff;
     }
 
@@ -126,172 +127,116 @@ public class CompileTask implements Task {
     // finds the method signatures that changed, recompiles classes (saves to out) that used the old method signature.
     // even i dont remember how this works anymore
     private void scan(List<String> changed, List<String> deleted, List<String> out, Context ctx) {
-        try {
-        // Start Preprocessing Files
-        int changedSize = changed.size();
-        int deletedSize = deleted.size();
-        int totalSize = changedSize + deletedSize;
+        Set<String> toRecompile = new HashSet<>(changed.size() * 2);
 
-        Set<String> toRecompile = new HashSet<>(changedSize * 2);
-        Map<String, String> classToSource = new HashMap<>(totalSize * 2);
-
-        Set<String> changedNames = new HashSet<>(changedSize * 2);
-        Set<String> changedDirs = new HashSet<>(changedSize * 2);
-        List<String> changedClasses = new ArrayList<>(changedSize * 2);
-
-        Set<String> deletedNames = new HashSet<>(deletedSize * 2);
-        Set<String> deletedDirs = new HashSet<>(deletedSize * 2);
-        List<String> deletedClasses = new ArrayList<>(deletedSize * 2);
-
-        deleted.forEach(file -> {
-            SourcePath parsed = stripExtension(file, ctx.source.toString());
-            deletedNames.add(parsed.extLess);
-            deletedDirs.add(parsed.classDir);
-        });
-
-        // im deleting classes, but not removing them from ownedMethods, calledMethods, methodDependents and adding those to rebuild
-        for (String dir: deletedDirs) {
-            try {
-                for (Path path: Files.list(ctx.out.resolve(dir)).toList()) {
-                    String classFile = path.toString();
-                    String sourceName = split(classFile, ctx.out.toString());
-                    if (deletedNames.contains(sourceName)) {
-                        classToSource.put(classFile, sourceName);
-                        deletedClasses.add(classFile);
+        // delete deleted class files, update dependencies
+        deleted.forEach(path -> {
+            ctx.cachedTree.forEachLeaf(path, leaf -> {
+                SourcePath parsed = stripExtension(leaf);
+                String source = parsed.extLess;
+                // TODO: would this be null, not really. ill ball for this
+                // remove the source binary, loop through them and delete .class
+                for (String binary: ctx.sourceToBinaries.remove(source)) { 
+                    try {
+                        Files.deleteIfExists(ctx.out.resolve(binary));
+                    } catch (Exception e) {
+                        Logger.debug("Couldn't delete " + binary);
                     }
                 }
-            } catch (Exception e) {
-                throw new NobException("Could not open deleted files", e);
-            }
-        }
 
-        changed.forEach(file -> {
-            SourcePath parsed = stripExtension(file, ctx.source.toString());
-            changedNames.add(parsed.extLess);
-            changedDirs.add(parsed.classDir);
-        });
+                Set<String> methods = ctx.sourceToDeclaredMethods.remove(source);
+                if (methods == null) 
+                    return; // if it has no methods, then it calls none either, no deps can return from here
 
-        for (String dir: changedDirs) {
-            try {
-                for (Path path: Files.list(ctx.out.resolve(dir)).toList()) {
-                    String classFile = path.toString();
-                    String sourceName = split(classFile, ctx.source.toString());
-                    if (changedNames.contains(sourceName)) {
-                        classToSource.put(classFile, sourceName);
-                        changedClasses.add(classFile);
+                for (String method: methods) {
+                    Set<String> deps = ctx.methodToCallerBinaries.remove(method);
+                    if (deps == null) {
+                        return;
+                    }
+                    for (String dep: deps) {
+                        toRecompile.add(split(source));
                     }
                 }
-            } catch (Exception e) {
-                throw new NobException("Could not open changed classes", e);
+
+                methods = ctx.sourceToCalledMethods.remove(source);
+                if (methods == null) 
+                    return; // if it calls no methods, no methods have it as their deps, return
+
+                for (String method: methods) {
+                    ctx.methodToCallerBinaries.computeIfPresent(method, (k, v) -> {
+                        v.remove(source);
+                        return v;
+                    });
+                }
+            });
+        });
+
+        Map<String, Set<String>> currMethods = new HashMap<>();
+        Map<String, Set<String>> currCalls = new HashMap<>();
+
+        // now loop over the changed files, read them
+        changed.forEach(path -> {
+            SourcePath parsed = stripExtension(path); // extensionless identifier, directory it's in
+            String source = parsed.extLess;
+            for (String binary: ctx.sourceToBinaries.get(source)) {
+                Set<String> methods = new HashSet<>();
+                Set<String> calls = new HashSet<>();
+                ScanState state = new ScanState(ctx.packageName, methods, calls);
+                parseClass(binary, state, ctx);
+                currMethods.computeIfAbsent(source, k -> new HashSet<>()).addAll(methods);
+                currCalls.computeIfAbsent(source, k -> new HashSet<>()).addAll(calls);
             }
-        }
-        // End Preprocessing Files
+        });
 
-        for (String classFile: deletedClasses) {
-            String sourceName = classToSource.get(classFile);
-            if (sourceName == null) {
-                throw new NobException("Couldn't find source for " + sourceName);
-            }
-
-            // we got the main class
-            // we get all of the methods of this class, cuz shit didnt change so we dont need to rescan it
-            // we remove all of that methods dependents, we get all of the called methods and remove ourselves from their dependents
-            try {
-                Files.deleteIfExists(Path.of(classFile));
-            } catch (Exception ignored){}
-
-            Set<String> methods = ctx.ownedMethods.remove(sourceName);
-            if (methods == null)
+        // update shit
+        for (Map.Entry<String, Set<String>> entry: currMethods.entrySet()) {
+            String source = entry.getKey();
+            Set<String> prev = ctx.sourceToDeclaredMethods.get(source);
+            if (prev == null)
                 continue;
 
-            for (String method: methods) {
-                Set<String> deps = ctx.methodDependents.remove(method);
+            Set<String> curr = entry.getValue();
+            prev.removeAll(curr);
+
+            for (String deletedSrc: prev) { // deleted methods
+                Set<String> deps = ctx.sourceToBinaries.remove(deletedSrc);
                 if (deps == null)
                     continue;
-                toRecompile.addAll(deps);
-            }
 
-            methods = ctx.calledMethods.remove(sourceName);
-            if (methods == null)
+                for (String dep: deps) {
+                    toRecompile.add(split(dep));
+                }
+            }
+        }
+
+        for (Map.Entry<String, Set<String>> entry: currCalls.entrySet()) {
+            String source = entry.getKey();
+            Set<String> prev = ctx.sourceToCalledMethods.get(source);
+            if (prev == null)
                 continue;
 
-            for (String method: methods) {
-                ctx.methodDependents.computeIfPresent(method, (k, v) -> {
-                    v.remove(sourceName);
+            Set<String> curr = entry.getValue();
+            Set<String> newCalls = new HashSet<>(curr);
+            newCalls.removeAll(prev);
+            prev.removeAll(curr);
+
+            for (String newMethod: newCalls) {
+                ctx.methodToCallerBinaries.computeIfAbsent(newMethod, k -> new HashSet<>()).add(source);
+            }
+
+            for (String deletedMethod: prev) { // deleted calls
+                ctx.methodToCallerBinaries.computeIfPresent(deletedMethod, (k, v) -> {
+                    v.remove(source);
                     return v;
                 });
             }
         }
 
-        Map<String, Set<String>> newOwned = new HashMap<>();
-        Map<String, Set<String>> newCalled = new HashMap<>();
-
-        // now to loop over the changed files, read them and update shit
-        for (String classFile: changedClasses) {
-            Set<String> ownedMethods = new HashSet<>();
-            Set<String> calledMethods = new HashSet<>();
-            ScanState state = new ScanState(ctx.packageName, ownedMethods, calledMethods);
-            parseClass(classFile, state, ctx);
-
-            String sourceName = classToSource.get(classFile);
-            if (sourceName == null) {
-                throw new NobException("Couldn't find source for " + classFile);
-            }
-
-            newOwned.computeIfAbsent(sourceName, k -> new HashSet<>()).addAll(ownedMethods);
-            newCalled.computeIfAbsent(sourceName, k -> new HashSet<>()).addAll(calledMethods);
-        }
-
-        for (Map.Entry<String, Set<String>> entry: newOwned.entrySet()) {
-            String name = entry.getKey();
-            Set<String> oldMethods = ctx.ownedMethods.get(name);
-            if (oldMethods == null)
-                continue;
-
-            Set<String> newMethods = entry.getValue();
-
-            oldMethods.removeAll(newMethods);
-
-            for (String method: oldMethods) { // deleted methods
-                Set<String> deps = ctx.methodDependents.remove(method);
-                if (deps == null)
-                    continue;
-
-                toRecompile.addAll(deps);
-            }
-        }
-
-        for (Map.Entry<String, Set<String>> entry: newCalled.entrySet()) {
-            String name = entry.getKey();
-            Set<String> oldMethods = ctx.calledMethods.get(name);
-            if (oldMethods == null)
-                continue;
-
-            Set<String> newMethods = entry.getValue();
-            for (String method: newMethods) {
-                if (!oldMethods.remove(method)) { // new call
-                    ctx.methodDependents.computeIfAbsent(method, k -> new HashSet<>()).add(name);
-                }
-            }
-
-            for (String method: oldMethods) {  // deleted calls
-                ctx.methodDependents.computeIfPresent(method, (k, v) -> {
-                    v.remove(name);
-                    return v;
-                });
-            }
-        }
-
-        ctx.ownedMethods.putAll(newOwned);
-        ctx.calledMethods.putAll(newCalled);
+        ctx.sourceToDeclaredMethods.putAll(currMethods);
+        ctx.sourceToCalledMethods.putAll(currCalls);
+        ctx.cachedTree = ctx.newTree;
         for (String path: toRecompile) {
-            if (!changedNames.contains(path)) {
-                out.add(path + ".java");
-            }
-        }
-
-        } catch (Exception e) {
-            throw new NobException("File IO error while scanning files.", e);
+            out.add(path);
         }
     }
 
@@ -308,7 +253,7 @@ public class CompileTask implements Task {
         cr.accept(cv, 0);
     }
 
-    private String split(String str, String source) {
+    private String split(String str) {
         int extStart = str.length();
         for(int i = str.length() - 1; i >= 0; i--) {
             char c = str.charAt(i);
@@ -316,13 +261,12 @@ public class CompileTask implements Task {
             if (c == '$') extStart = i;
             if (c == '/') break;
         }
-        return str.substring(source.length() + 1, extStart);
+        return str.substring(0, extStart);
     }
 
     // paths are like nob/build/Scanner.java
     // I walk from back, return everything from beginning until that .
-    private SourcePath stripExtension(String str, String source) {
-        int start = source.length() + 1;
+    private SourcePath stripExtension(String str) {
         int extStart = str.length();
         int dirEnd = str.length();
         for (int i = extStart - 1; i >= 0; i--) {
@@ -330,7 +274,7 @@ public class CompileTask implements Task {
             if (c == '.') extStart = i; 
             if (c == '/') { dirEnd = i; break; }
         }
-        return new SourcePath(str.substring(start, dirEnd), str.substring(start, extStart));
+        return new SourcePath(str.substring(0, dirEnd), str.substring(0, extStart));
     }
 
     record SourcePath(String classDir, String extLess) {}
@@ -338,40 +282,36 @@ public class CompileTask implements Task {
 
 // FileSystem cache, exists so that we dont need to call os to walk again and again and again
 // Also a MerkleTree
-public class FileEntry implements Serializable {
+class FileEntry implements Serializable {
     public String pathStr;
     public long mTime;
-    private Set<String> children;
+    public Set<String> children;
 
-    transient public Path path;
-
-    public FileEntry(Path path, long mTime, Set<String> children) {
-        this.pathStr = path.toString();
+    public FileEntry(String pathStr, long mTime, Set<String> children) {
+        this.pathStr = pathStr;
         this.mTime =  mTime;
         this.children = children;
-        this.path = path;
     }
     
-    public Path path() {
-        if (path == null) path = Path.of(pathStr);
-        return path;
+    public void addChild(String path) {
+        children.add(path);
     }
 
     public boolean isFile() { 
         return children == null; 
     }
 
-    public Set<String> children() {
-        if (children == null) return Set.of();
-        return children;
+    public static FileEntry file(String pathStr, long mTime) {
+        return new FileEntry(pathStr, mTime, null);
     }
 
-    public static FileEntry file(Path path, long mTime) {
-        return new FileEntry(path, mTime, null);
+    public static FileEntry dir(String pathStr, long mTime) {
+        return new FileEntry(pathStr, mTime, new HashSet<>());
     }
 
-    public static FileEntry dir(Path path, long mTime) {
-        return new FileEntry(path, mTime, new HashSet<>());
+    @Override
+    public String toString() {
+        return (isFile() ? "File" : "Dir") + "[" + pathStr + ", mTime=" + mTime + ", children=" + children + "]";
     }
 }
 
@@ -403,46 +343,72 @@ class FileTree implements Serializable {
             return;
         }
 
-        for (String childPath: entry.children()) {
+        for (String childPath: entry.children) {
             collectLeaves(childPath, result);
+        }
+    }
+
+    public void forEachLeaf(String path, Consumer<String> action) {
+        FileEntry entry = get(path);
+        if (entry.isFile()) {
+            action.accept(path);
+            return;
+        }
+        for (String child : entry.children) {
+            forEachLeaf(child, action);
         }
     }
 
     public static FileTree build(String root) {
         Map<String, FileEntry> entries = new HashMap<>();
         Deque<FileEntry> stack = new ArrayDeque<>();
+        int offset = root.length() + 1;
 
         try {
             Files.walkFileTree(Path.of(root), new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    FileEntry d = FileEntry.dir(dir, attrs.lastModifiedTime().toMillis());
+                    String path = dir.toString();
+                    if (!path.equals(root)) {
+                        path = path.substring(offset, path.length());
+                    }
+                    FileEntry d = FileEntry.dir(path, attrs.lastModifiedTime().toMillis());
                     stack.push(d);
-                    entries.put(dir.toString(), d);
+                    entries.put(path, d);
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    String path = file.toString();
+                    if (!path.endsWith(".java")) return FileVisitResult.CONTINUE;
+
+                    path = path.substring(offset, path.length() - 5);
                     long mTime = attrs.lastModifiedTime().toMillis();
                     FileEntry parent = stack.peek();
                     if (mTime > parent.mTime) {
                         parent.mTime = mTime;
                     }
-                    FileEntry f = FileEntry.file(file, mTime);
-                    entries.put(file.toString(), f);
+                    FileEntry f = FileEntry.file(path, mTime);
+                    entries.put(path, f);
+                    parent.addChild(path);
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
                 public FileVisitResult postVisitDirectory(Path dir, IOException ex) throws IOException {
                     if (stack.size() > 1) {
+                        String path = dir.toString();
+                        if (!path.equals(root)) {
+                            path = path.substring(offset, path.length());
+                        }
                         FileEntry child = stack.pop();
                         FileEntry parent = stack.peek();
                         if (child.mTime > parent.mTime) {
                             parent.mTime = child.mTime; 
                         }
-                    }
+                        parent.addChild(path);
+                    }  
                     return FileVisitResult.CONTINUE;
                 }
             });
@@ -458,37 +424,64 @@ class FileTree implements Serializable {
         if (prev.root.mTime == curr.root.mTime) return;
 
         Deque<String> deque = new ArrayDeque<>();
-        deque.addAll(curr.root.children());
-        while (!deque.isEmpty()) {
-            String currStr = deque.pop();
-            FileEntry child = curr.get(currStr); // cannot be null
-            FileEntry twin = prev.remove(currStr); // can be null
+        deque.addAll(prev.root.children);
 
-            if (twin == null || twin.mTime != child.mTime) { // added/changed
-                if (child.isFile()) {
-                    diff.changed().add(currStr);
+        while (!deque.isEmpty()) {
+            String path = deque.pop();
+            FileEntry oldChild = prev.get(path);
+            FileEntry newChild = curr.get(path);
+
+            if (newChild == null) { // removed
+                diff.deleted().add(path);
+            } else if (oldChild.mTime != newChild.mTime) { // changed
+                if (newChild.isFile()) {
+                    diff.changed().add(path);
                 } else {
-                    deque.addAll(child.children());
+                    deque.addAll(oldChild.children);
                 }
-            } 
+            }
         }
-        
-        diff.removed().addAll(prev.entries.keySet());
+
+        for (Map.Entry<String, FileEntry> entry: curr.entries.entrySet()) {
+            if (!prev.entries.containsKey(entry.getKey()) && entry.getValue().isFile()) {
+                diff.changed().add(entry.getKey());
+            }
+        }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("FileTree[root=").append(root).append("]\n");
+        buildString(sb, root.pathStr, 0);
+        return sb.toString();
+    }
+
+    private void buildString(StringBuilder sb, String path, int depth) {
+        sb.append("  ".repeat(depth))
+            .append(path)
+            .append("\n");
+        Set<String> children = entries.get(path).children;
+        if (children != null) {
+            for (String child : children) {
+                buildString(sb, child, depth + 1);
+            }
+        }
     }
 }
 
 record DiffResult(List<String> changed, List<String> deleted) {}
 
 class ScanState {
-    String className;
+    String binaryName; // this gets set from the reader
     String packageName;
-    Set<String> ownedMethods;
-    Set<String> calledMethods;
+    Set<String> currMethods;
+    Set<String> currCalls;
 
-    ScanState(String packageName, Set<String> ownedMethods, Set<String> calledMethods) {
+    ScanState(String packageName, Set<String> currMethods, Set<String> currCalls) {
         this.packageName = packageName;
-        this.ownedMethods = ownedMethods;
-        this.calledMethods = calledMethods;
+        this.currMethods = currMethods;
+        this.currCalls = currCalls;
     }
 }
 
@@ -502,14 +495,14 @@ class ClassScanner extends ClassVisitor {
     @Override
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
         // track class name
-        state.className = name;
+        state.binaryName = name;
         super.visit(version, access, name, signature, superName, interfaces);
     }
 
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         // return custom method visitor if method aint part of this class
-        state.ownedMethods.add(state.className + "/" + name + descriptor);
+        state.currMethods.add(state.binaryName + "/" + name + descriptor);
         MethodScanner scanner = new MethodScanner(api, state);
         return scanner;
     }
@@ -525,8 +518,8 @@ class MethodScanner extends MethodVisitor {
     @Override
     public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
         // track method calls in this class
-        if (owner.startsWith(state.packageName) && !owner.equals(state.className)) {
-            state.calledMethods.add(owner + "/" + name + descriptor);
+        if (owner.startsWith(state.packageName) && !owner.equals(state.binaryName)) {
+            state.currCalls.add(owner + "/" + name + descriptor);
         }
         super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
     }
