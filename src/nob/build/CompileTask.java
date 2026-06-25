@@ -128,44 +128,6 @@ public class CompileTask implements Task {
         }
     }
 
-    void runJavac(List<String> files, Context ctx) {
-        List<String> cmd = new  ArrayList<>(List.of("javac"));
-
-        if (!ctx.compileConfig.modules.isEmpty()) {
-            cmd.add("--add-modules");
-            cmd.addAll(ctx.compileConfig.modules);
-        }
-/*
-
-        String sep = System.getProperty("path.separator");
-        List<String> cpOpts = new ArrayList<>();
-        cpOpts.add(ctx.out.toString());
-        cpOpts.add(".");
-        cpOpts.add(ctx.libs.toString() + "/*");
-        cpOpts.addAll(ctx.compileConfig.classpath);
-        cmd.add("-cp");
-        cmd.add(String.join(sep, cpOpts));
-*/
-/*
-
-        cmd.add("-d");
-        cmd.add(ctx.out.toString());
-*/
-
-        cmd.addAll(ctx.compileConfig.compilerFlags);
-        cmd.add("-proc:none");
-        cmd.addAll(files);
-
-        try {
-            int exit = new ProcessBuilder(cmd).inheritIO().start().waitFor();
-            if (exit != 0) throw new NobException("javac failed with exit code " + exit);
-        } catch (NobException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new NobException("failed to start javac", e);
-        }
-    }
-
     DiffResult diff(Context ctx) {
         List<String> changed = new ArrayList<>();
         List<String> removed = new ArrayList<>();
@@ -198,6 +160,7 @@ public class CompileTask implements Task {
                 String source = parsed.extLess();
                 // TODO: would this be null, not really. ill ball for this
                 for (String binary: ctx.sourceToBinaries.remove(source)) { 
+                    ctx.binaryToSource.remove(binary);
                     try {
                         Files.deleteIfExists(ctx.out.resolve(binary));
                     } catch (Exception e) {
@@ -259,8 +222,9 @@ public class CompileTask implements Task {
             Set<String> curr = entry.getValue();
             prev.removeAll(curr);
 
-            for (String deletedSrc: prev) { // deleted methods
-                Set<String> deps = ctx.sourceToBinaries.remove(deletedSrc);
+            for (String deletedMethod: prev) { // deleted methods
+                Set<String> deps = ctx.methodToCallerBinaries.remove(deletedMethod);
+                ;
                 if (deps == null)
                     continue;
 
