@@ -40,6 +40,7 @@ import nob.Task;
 
 import static javax.xml.stream.XMLStreamConstants.*;
 
+// TODO: Only resolve if deps list was updated.
 public class ResolveTask implements Task {
     // assuming there's only one instance of this task, might have to make them object specific and/or use ThreadLocal who knows
     private static final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
@@ -181,8 +182,9 @@ public class ResolveTask implements Task {
 
         try {
             Path target = ctx.libs.resolve(fileName);
+            ctx.libJars.add(target);
             if (!Files.exists(target)) {
-                Files.copy(jarPath, ctx.libs.resolve(fileName));
+                Files.copy(jarPath, target);
             }
         } catch (Exception e) {
             throw new NobException("Failed to copy jar from global cache to local libs folder", e);

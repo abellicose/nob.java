@@ -29,7 +29,7 @@ public class Nob {
             if (ctx != null) return;
             ctx = Context.load(this);
 
-            ctx.deps.add(new Dependency("com.buession.springboot", "buession-springboot-boot", "3.0.1"));
+            ctx.deps.add(new Dependency("org.ow2.asm", "asm", "9.10.1"));
 
             graph.register(new CompileTask());
             graph.register(new PackageTask());

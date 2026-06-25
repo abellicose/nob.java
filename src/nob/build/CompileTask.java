@@ -7,7 +7,6 @@
 
 package nob.build;
 
-import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Files;
@@ -30,8 +29,21 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import java.io.IOException;
+import java.io.Serializable;
 import nob.NobException;
 import nob.Task;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticCollector;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.ForwardingJavaFileManager;
+import javax.tools.StandardLocation;
+import javax.tools.JavaFileManager;
+import javax.tools.FileObject;
+import java.util.stream.Collectors;
+
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -44,30 +56,75 @@ public class CompileTask implements Task {
         return List.of("resolve"); 
     }
 
+    // TODO: Test if a stale dependency in ctx.out crashes this
+    // A.class (already built) depends on B.class
+    // if B.class changed its method signature, they wont work properly unless A.class is
+    // recompiled. See if Changing B but not A does something to this.
+    // Should be handled by toCompile() but just in case
     public void execute(Context ctx) {
-        DiffResult diff = diff(ctx);
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        FileManager fm = new FileManager(ctx, compiler.getStandardFileManager(diagnostics, null, null));
+        List<String> options = ctx.compileConfig.compilerFlags;
 
-        List<String> toRecompile = diff.changed();
-        List<String> toDelete = diff.deleted();
-        Logger.info("Files to delete: " + toDelete);
-        int n = 0;
-
-        while (!toRecompile.isEmpty()) {
-            Logger.info("Files to recompile: " + toRecompile);
-            runJavac(toRecompile, ctx);
-            List<String> out = new ArrayList<>(toRecompile.size());
-            scan(toRecompile, toDelete, out, ctx);
-            toRecompile = out;
-            toDelete = List.of();
-
-            if (++n > 4) 
-                throw new NobException("Recompile loop executed too many times.");
+        List<Path> paths = new ArrayList<>();
+        paths.add(ctx.out);
+        paths.addAll(ctx.libJars);
+        for (String path: ctx.compileConfig.classpath) {
+            paths.add(Path.of(path));
         }
 
-        if (n == 0) {
-            Logger.info("All files are UP-TO-DATE");
-        } else {
+        try {
+            fm.getDelegate().setLocationFromPaths(StandardLocation.SOURCE_PATH, List.of(ctx.source));
+            fm.getDelegate().setLocationFromPaths(StandardLocation.CLASS_PATH, paths);
+            fm.getDelegate().setLocationFromPaths(StandardLocation.CLASS_OUTPUT, List.of(ctx.out));
+
+            DiffResult diff = diff(ctx);
+
+            List<String> toRecompile = diff.changed();
+            List<String> toDelete = diff.deleted();
+            Logger.info("Files to delete: " + toDelete);
+            int n = 0;
+
+            while (!toRecompile.isEmpty()) {
+                Logger.info("Files to recompilee: " + toRecompile);
+                List<Path> sourcePaths = toRecompile.stream()
+                .map(m -> ctx.source.resolve(m + ".java"))
+                .collect(Collectors.toList());
+                Iterable<? extends JavaFileObject> files = fm.getDelegate().getJavaFileObjectsFromPaths(sourcePaths);
+
+                JavaCompiler.CompilationTask task = compiler.getTask(null, fm, diagnostics, options, null, files);
+
+                boolean done = task.call();
+
+
+                if (!done) {
+                    for (Diagnostic<? extends JavaFileObject> d: diagnostics.getDiagnostics()) {
+                        Logger.info(d.toString());
+                    }
+                    throw new NobException("javac failed");
+                }
+
+                List<String> out = new ArrayList<>(toRecompile.size());
+                scan(toRecompile, toDelete, out, ctx);
+                toRecompile = out;
+                toDelete = List.of();
+
+                if (++n > 4) 
+                    throw new NobException("Recompile loop executed too many times.");
+            }
+
+            if (n == 0) {
+                Logger.info("All files are UP-TO-DATE");
+            } 
+
             ctx.save(); 
+
+            // TODO: Don't close here, keep it alive during the lifetime of the process
+            fm.close();
+        } catch (Exception e) {
+            Logger.warn("Scan failed");
+            e.printStackTrace();
         }
     }
 
@@ -78,6 +135,7 @@ public class CompileTask implements Task {
             cmd.add("--add-modules");
             cmd.addAll(ctx.compileConfig.modules);
         }
+/*
 
         String sep = System.getProperty("path.separator");
         List<String> cpOpts = new ArrayList<>();
@@ -87,9 +145,12 @@ public class CompileTask implements Task {
         cpOpts.addAll(ctx.compileConfig.classpath);
         cmd.add("-cp");
         cmd.add(String.join(sep, cpOpts));
+*/
+/*
 
         cmd.add("-d");
         cmd.add(ctx.out.toString());
+*/
 
         cmd.addAll(ctx.compileConfig.compilerFlags);
         cmd.add("-proc:none");
@@ -105,13 +166,12 @@ public class CompileTask implements Task {
         }
     }
 
-    public DiffResult diff(Context ctx) {
+    DiffResult diff(Context ctx) {
         List<String> changed = new ArrayList<>();
         List<String> removed = new ArrayList<>();
         DiffResult diff = new DiffResult(changed, removed);
 
         FileTree curr = FileTree.build(ctx.source.toString());
-        System.out.println(curr);
 
         if (ctx.cachedTree == null) {
             curr.collectLeaves(ctx.source.toString(), changed);
@@ -123,19 +183,20 @@ public class CompileTask implements Task {
         return diff;
     }
 
-    // deletes deleted class files, opens recompiled class files, scans them, creates the dep tree and cache stuff, saves them
-    // finds the method signatures that changed, recompiles classes (saves to out) that used the old method signature.
-    // even i dont remember how this works anymore
-    private void scan(List<String> changed, List<String> deleted, List<String> out, Context ctx) {
+    // Everything in out is basically files the user forgot to update after
+    // editing a file. We could throw an error but we'll still let this happen.
+    // This wasn't an original idea but this would allow us to continue in case
+    // the program or some external program decided to generate code by itself.
+    // Probably not but i can dream.
+    void scan(List<String> changed, List<String> deleted, List<String> out, Context ctx) {
         Set<String> toRecompile = new HashSet<>(changed.size() * 2);
 
         // delete deleted class files, update dependencies
         deleted.forEach(path -> {
             ctx.cachedTree.forEachLeaf(path, leaf -> {
                 SourcePath parsed = stripExtension(leaf);
-                String source = parsed.extLess;
+                String source = parsed.extLess();
                 // TODO: would this be null, not really. ill ball for this
-                // remove the source binary, loop through them and delete .class
                 for (String binary: ctx.sourceToBinaries.remove(source)) { 
                     try {
                         Files.deleteIfExists(ctx.out.resolve(binary));
@@ -154,7 +215,7 @@ public class CompileTask implements Task {
                         return;
                     }
                     for (String dep: deps) {
-                        toRecompile.add(split(source));
+                        toRecompile.add(ctx.binaryToSource.get(dep));
                     }
                 }
 
@@ -177,7 +238,7 @@ public class CompileTask implements Task {
         // now loop over the changed files, read them
         changed.forEach(path -> {
             SourcePath parsed = stripExtension(path); // extensionless identifier, directory it's in
-            String source = parsed.extLess;
+            String source = parsed.extLess();
             for (String binary: ctx.sourceToBinaries.get(source)) {
                 Set<String> methods = new HashSet<>();
                 Set<String> calls = new HashSet<>();
@@ -204,7 +265,7 @@ public class CompileTask implements Task {
                     continue;
 
                 for (String dep: deps) {
-                    toRecompile.add(split(dep));
+                    toRecompile.add(ctx.binaryToSource.get(dep));
                 }
             }
         }
@@ -240,8 +301,8 @@ public class CompileTask implements Task {
         }
     }
 
-    private void parseClass(String file, ScanState state, Context ctx) {
-        Path path = Path.of(file);
+    void parseClass(String file, ScanState state, Context ctx) {
+        Path path = Path.of(file + ".class");
         byte[] bytes;
         try {
             bytes = Files.readAllBytes(ctx.out.resolve(path));
@@ -253,20 +314,7 @@ public class CompileTask implements Task {
         cr.accept(cv, 0);
     }
 
-    private String split(String str) {
-        int extStart = str.length();
-        for(int i = str.length() - 1; i >= 0; i--) {
-            char c = str.charAt(i);
-            if (c == '.') extStart = i;
-            if (c == '$') extStart = i;
-            if (c == '/') break;
-        }
-        return str.substring(0, extStart);
-    }
-
-    // paths are like nob/build/Scanner.java
-    // I walk from back, return everything from beginning until that .
-    private SourcePath stripExtension(String str) {
+    SourcePath stripExtension(String str) {
         int extStart = str.length();
         int dirEnd = str.length();
         for (int i = extStart - 1; i >= 0; i--) {
@@ -276,8 +324,22 @@ public class CompileTask implements Task {
         }
         return new SourcePath(str.substring(0, dirEnd), str.substring(0, extStart));
     }
+}
 
-    record SourcePath(String classDir, String extLess) {}
+record SourcePath(String classDir, String extLess) {}
+record DiffResult(List<String> changed, List<String> deleted) {}
+
+class ScanState {
+    String binaryName; // this gets set from the reader
+    String packageName;
+    Set<String> currMethods;
+    Set<String> currCalls;
+
+    ScanState(String packageName, Set<String> currMethods, Set<String> currCalls) {
+        this.packageName = packageName;
+        this.currMethods = currMethods;
+        this.currCalls = currCalls;
+    }
 }
 
 // FileSystem cache, exists so that we dont need to call os to walk again and again and again
@@ -359,6 +421,9 @@ class FileTree implements Serializable {
         }
     }
 
+    // every source file is saved as its internal name.
+    // every manipulation is done with the internal name
+    // we just add .java at the end just during compilation
     public static FileTree build(String root) {
         Map<String, FileEntry> entries = new HashMap<>();
         Deque<FileEntry> stack = new ArrayDeque<>();
@@ -470,21 +535,6 @@ class FileTree implements Serializable {
     }
 }
 
-record DiffResult(List<String> changed, List<String> deleted) {}
-
-class ScanState {
-    String binaryName; // this gets set from the reader
-    String packageName;
-    Set<String> currMethods;
-    Set<String> currCalls;
-
-    ScanState(String packageName, Set<String> currMethods, Set<String> currCalls) {
-        this.packageName = packageName;
-        this.currMethods = currMethods;
-        this.currCalls = currCalls;
-    }
-}
-
 class ClassScanner extends ClassVisitor {
     ScanState state;
     public ClassScanner(int api, ScanState state) {
@@ -522,5 +572,32 @@ class MethodScanner extends MethodVisitor {
             state.currCalls.add(owner + "/" + name + descriptor);
         }
         super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+    }
+}
+
+class FileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
+    Context ctx;
+    int offset;
+
+    public FileManager(Context ctx, StandardJavaFileManager fm) {
+        super(fm);
+        this.ctx = ctx;
+        this.offset = ctx.source.toString().length() + 1;
+    }
+
+    @Override
+    public JavaFileObject getJavaFileForOutput(JavaFileManager.Location location, String className, JavaFileObject.Kind kind, FileObject sibling) throws IOException {
+        if (sibling != null) {
+            String source = sibling.getName();
+            source = source.substring(offset, source.length() - 5);
+            String binary = className.replace(".", "/");
+            ctx.sourceToBinaries.computeIfAbsent(source, k -> new HashSet<>()).add(binary);
+            ctx.binaryToSource.put(binary, source);
+        }
+        return super.getJavaFileForOutput(location, className, kind, sibling);
+    }
+
+    public StandardJavaFileManager getDelegate() {
+        return fileManager; // ForwardingJavaFileManager exposes this as protected field
     }
 }
