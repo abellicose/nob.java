@@ -1,0 +1,167 @@
+[33mcommit 7f8022fb7bebdf75b7e0a63b1fb65a7a0873cbe8[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu Jun 25 20:05:13 2026 +0600
+
+    Pathces after patches after patches
+
+[33mcommit a12a90d9e3352cd57e90c82e336dc86dcd0cf15c[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu Jun 25 16:30:22 2026 +0600
+
+    STUFF
+
+[33mcommit 3fbacb78ba9fecb2a81835cfe4b5032658f62164[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Tue Jun 23 22:44:24 2026 +0600
+
+    A LOT OF WORK
+
+[33mcommit b56c00d2123676ccb64f8a4ae6890f746650f46e[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Mon Jun 22 20:57:30 2026 +0600
+
+    Overhaul starts
+
+[33mcommit 1fd85958b63d08a7913103780de1e85ec5b83d6d[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Sun Jun 21 22:58:38 2026 +0600
+
+    Threaded Downloads
+
+[33mcommit 3848ec0c84d5a89b76c37986d0b47a7346c52921[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu Jun 11 20:56:33 2026 +0600
+
+    Phase 1 Completed
+
+[33mcommit 20f3abbae4fa4404814a163c46a70529b72b6958[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu Jun 11 16:05:06 2026 +0600
+
+    Phase 1 Complete
+
+[33mcommit 7d6a1e828adfef966e0760bf6fff4f4b34e05f36[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Wed Jun 10 21:19:18 2026 +0600
+
+    Half of dependency reoslution
+
+[33mcommit 075f3ea064bfb5d8df162e8d148c2385963d027a[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Tue Jun 2 18:18:14 2026 +0600
+
+    Bootstrap Building
+
+[33mcommit d54e6e7c9beda68a2625bd90a3cf21be2b4759fd[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Tue Jun 2 12:38:24 2026 +0600
+
+    fatigue
+
+[33mcommit 9c26e2543cfb66e1b258ad41c0d38663925789b5[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Tue Jun 2 12:19:02 2026 +0600
+
+    readme
+
+[33mcommit 7784115fd6ff97ed067d847018da2d1cf4e20165[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Tue Jun 2 12:10:43 2026 +0600
+
+    chore: building works
+
+[33mcommit c30f41d991e9174871934a31190ab658d538235c[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Mon Jun 1 21:08:10 2026 +0600
+
+    chore: state diff and shit
+
+[33mcommit 7746c3982b4c9cf5b4ba20600c4fd9636dd35dc7[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Sun May 31 23:28:35 2026 +0600
+
+    fix: readme
+
+[33mcommit d2bbdce5280c706f09fe8037de7b4b0969da8b3a[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Sun May 31 23:27:35 2026 +0600
+
+    refactor: restructuring again
+
+[33mcommit ebcc15a97fbc93418fd0ecfe4902cf1be3558270[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Sun May 31 13:12:01 2026 +0600
+
+    refractor: changed the structure a bit
+
+[33mcommit 4bc04a70b8bc0e79af2efc21e407f278d7a8c44d[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Sun May 31 09:48:13 2026 +0600
+
+    feat: incremental build
+
+[33mcommit 5565e51e2bb756e48cc068a7d3333ff234d4fbb0[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Sun May 31 00:01:53 2026 +0600
+
+    chore: finished Scanner, started cleanup
+
+[33mcommit ee5a9c1dab8ceeab26f49c6f5aa0e0b2c8b59131[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Fri May 29 21:05:57 2026 +0600
+
+    chore: working on incremental build
+
+[33mcommit 1e9c0e17e134b89be3be8a31c1b16161a249f5c5[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Fri May 29 19:17:43 2026 +0600
+
+    feat: stale file checker
+
+[33mcommit a6e7938ae81ea929a34e59e54bbb2e9135bd0779[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Fri May 29 09:33:00 2026 +0600
+
+    refractor: created separate packages
+
+[33mcommit c0230140343aa1e90ecb93e6b1be85a9d699fdf9[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Fri May 29 07:24:28 2026 +0600
+
+    feat: asm
+
+[33mcommit ae705187da2df99e60ca07ad5e70cff8dc8a1cd9[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu May 28 23:58:06 2026 +0600
+
+    feat: inc build file diff with merkle tree
+
+[33mcommit 345e0f77083a3ef92be08ea77691ccc5e5b6cfa1[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu May 28 18:19:12 2026 +0600
+
+    refractor: restructuring completed
+
+[33mcommit f5a2a727d8dcfbf23ec0fbb9cd4b02beec63f3e1[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu May 28 17:29:52 2026 +0600
+
+    refractor: restructuring, no behavior change
+
+[33mcommit 3a2f3eaacca2efc37206daf294dfe9e5f499cb49[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu May 14 14:46:45 2026 +0600
+
+    mknob
+
+[33mcommit a38e993e4919890ba24537f9697f90c369828c52[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu May 14 13:55:05 2026 +0600
+
+    Building Works
+
+[33mcommit 92b760e298a19a522100efa03fbe46d882801b39[m
+Author: Zubayer Hossain <zubayerhossain180@gmail.com>
+Date:   Thu May 14 13:50:59 2026 +0600
+
+    Initial Commit
