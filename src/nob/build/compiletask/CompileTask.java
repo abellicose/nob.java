@@ -134,13 +134,13 @@ public class CompileTask implements Task {
 
         FileTree curr = FileTree.build(ctx.source.toString());
 
-        if (ctx.cachedTree == null) {
+        if (ctx.cache.cachedTree == null) {
             curr.collectLeaves(ctx.source.toString(), changed);
         } else {
-            FileTree.diff(ctx.cachedTree, curr, diff);
+            FileTree.diff(ctx.cache.cachedTree, curr, diff);
         }
 
-        ctx.newTree = curr;
+        ctx.cache.newTree = curr;
         return diff;
     }
 
@@ -162,8 +162,8 @@ class FileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
             String source = sibling.getName();
             source = source.substring(offset, source.length() - 5);
             String binary = className.replace(".", "/");
-            ctx.sourceToBinaries.computeIfAbsent(source, k -> new HashSet<>()).add(binary);
-            ctx.binaryToSource.put(binary, source);
+            ctx.cache.sourceToBinaries.computeIfAbsent(source, k -> new HashSet<>()).add(binary);
+            ctx.cache.binaryToSource.put(binary, source);
         }
         return super.getJavaFileForOutput(location, className, kind, sibling);
     }

@@ -23,22 +23,23 @@ import org.objectweb.asm.ClassReader;
 import static org.objectweb.asm.Opcodes.*;
 
 public class Scanner {
-    // Everything in out is basically files the user forgot to update after
+    // Everything inside list out is basically files the user forgot to update after
     // editing a file. We could throw an error but we'll still let this happen.
     // This wasn't an original idea but this would allow us to continue in case
     // the program or some external program decided to generate code by itself.
     // Probably not but i can dream.
     static void scan(List<String> changed, List<String> deleted, List<String> out, Context ctx) {
+        CompileCache cache = ctx.cache;
         Set<String> toRecompile = new HashSet<>(changed.size() * 2);
 
         // delete deleted class files, update dependencies
         deleted.forEach(path -> {
-            ctx.cachedTree.forEachLeaf(path, leaf -> {
+            cache.cachedTree.forEachLeaf(path, leaf -> {
                 SourcePath parsed = stripExtension(leaf);
                 String source = parsed.extLess();
                 // TODO: would this be null, not really. ill ball for this
-                for (String binary: ctx.sourceToBinaries.remove(source)) { 
-                    ctx.binaryToSource.remove(binary);
+                for (String binary: cache.sourceToBinaries.remove(source)) { 
+                    cache.binaryToSource.remove(binary);
                     try {
                         Files.deleteIfExists(ctx.out.resolve(binary));
                     } catch (Exception e) {
@@ -46,26 +47,26 @@ public class Scanner {
                     }
                 }
 
-                Set<String> methods = ctx.sourceToDeclaredMethods.remove(source);
+                Set<String> methods = cache.sourceToDeclaredMethods.remove(source);
                 if (methods == null) 
                     return; // if it has no methods, then it calls none either, no deps can return from here
 
                 for (String method: methods) {
-                    Set<String> deps = ctx.methodToCallerBinaries.remove(method);
+                    Set<String> deps = cache.methodToCallerBinaries.remove(method);
                     if (deps == null) {
                         return;
                     }
                     for (String dep: deps) {
-                        toRecompile.add(ctx.binaryToSource.get(dep));
+                        toRecompile.add(cache.binaryToSource.get(dep));
                     }
                 }
 
-                methods = ctx.sourceToCalledMethods.remove(source);
+                methods = cache.sourceToCalledMethods.remove(source);
                 if (methods == null) 
                     return; // if it calls no methods, no methods have it as their deps, return
 
                 for (String method: methods) {
-                    ctx.methodToCallerBinaries.computeIfPresent(method, (k, v) -> {
+                    cache.methodToCallerBinaries.computeIfPresent(method, (k, v) -> {
                         v.remove(source);
                         return v;
                     });
@@ -80,7 +81,7 @@ public class Scanner {
         changed.forEach(path -> {
             SourcePath parsed = stripExtension(path); // extensionless identifier, directory it's in
             String source = parsed.extLess();
-            for (String binary: ctx.sourceToBinaries.get(source)) {
+            for (String binary: cache.sourceToBinaries.get(source)) {
                 Set<String> methods = new HashSet<>();
                 Set<String> calls = new HashSet<>();
                 ScanState state = new ScanState(ctx.packageName, methods, calls);
@@ -93,7 +94,7 @@ public class Scanner {
         // update shit
         for (Map.Entry<String, Set<String>> entry: currMethods.entrySet()) {
             String source = entry.getKey();
-            Set<String> prev = ctx.sourceToDeclaredMethods.get(source);
+            Set<String> prev = cache.sourceToDeclaredMethods.get(source);
             if (prev == null)
                 continue;
 
@@ -101,20 +102,20 @@ public class Scanner {
             prev.removeAll(curr);
 
             for (String deletedMethod: prev) { // deleted methods
-                Set<String> deps = ctx.methodToCallerBinaries.remove(deletedMethod);
+                Set<String> deps = cache.methodToCallerBinaries.remove(deletedMethod);
                 ;
                 if (deps == null)
                     continue;
 
                 for (String dep: deps) {
-                    toRecompile.add(ctx.binaryToSource.get(dep));
+                    toRecompile.add(cache.binaryToSource.get(dep));
                 }
             }
         }
 
         for (Map.Entry<String, Set<String>> entry: currCalls.entrySet()) {
             String source = entry.getKey();
-            Set<String> prev = ctx.sourceToCalledMethods.get(source);
+            Set<String> prev = cache.sourceToCalledMethods.get(source);
             if (prev == null)
                 continue;
 
@@ -124,20 +125,20 @@ public class Scanner {
             prev.removeAll(curr);
 
             for (String newMethod: newCalls) {
-                ctx.methodToCallerBinaries.computeIfAbsent(newMethod, k -> new HashSet<>()).add(source);
+                cache.methodToCallerBinaries.computeIfAbsent(newMethod, k -> new HashSet<>()).add(source);
             }
 
             for (String deletedMethod: prev) { // deleted calls
-                ctx.methodToCallerBinaries.computeIfPresent(deletedMethod, (k, v) -> {
+                cache.methodToCallerBinaries.computeIfPresent(deletedMethod, (k, v) -> {
                     v.remove(source);
                     return v;
                 });
             }
         }
 
-        ctx.sourceToDeclaredMethods.putAll(currMethods);
-        ctx.sourceToCalledMethods.putAll(currCalls);
-        ctx.cachedTree = ctx.newTree;
+        cache.sourceToDeclaredMethods.putAll(currMethods);
+        cache.sourceToCalledMethods.putAll(currCalls);
+        cache.cachedTree = cache.newTree;
         for (String path: toRecompile) {
             out.add(path);
         }
