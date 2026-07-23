@@ -47,6 +47,7 @@ import java.util.stream.Collectors;
 import static org.objectweb.asm.Opcodes.*;
 
 public class CompileTask implements Task {
+
     public String id() {
         return "compile";
     }
@@ -63,7 +64,7 @@ public class CompileTask implements Task {
     public void execute(Context ctx) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        FileManager fm = new FileManager(ctx, compiler.getStandardFileManager(diagnostics, null, null));
+        FileManager fm = new FileManager(ctx.source, ctx.cache, compiler.getStandardFileManager(diagnostics, null, null));
         List<String> options = ctx.compileConfig.compilerFlags;
 
         List<Path> paths = new ArrayList<>();
@@ -78,7 +79,7 @@ public class CompileTask implements Task {
             fm.getDelegate().setLocationFromPaths(StandardLocation.CLASS_PATH, paths);
             fm.getDelegate().setLocationFromPaths(StandardLocation.CLASS_OUTPUT, List.of(ctx.out));
 
-            DiffResult diff = diff(ctx);
+            DiffResult diff = diff(ctx.source, ctx.cache);
 
             List<String> toRecompile = diff.changed();
             List<String> toDelete = diff.deleted();
@@ -95,7 +96,6 @@ public class CompileTask implements Task {
                 JavaCompiler.CompilationTask task = compiler.getTask(null, fm, diagnostics, options, null, files);
 
                 boolean done = task.call();
-
 
                 if (!done) {
                     for (Diagnostic<? extends JavaFileObject> d: diagnostics.getDiagnostics()) {
@@ -127,33 +127,33 @@ public class CompileTask implements Task {
         }
     }
 
-    DiffResult diff(Context ctx) {
+    DiffResult diff(Path source, CompileCache cache) {
         List<String> changed = new ArrayList<>();
         List<String> removed = new ArrayList<>();
         DiffResult diff = new DiffResult(changed, removed);
 
-        FileTree curr = FileTree.build(ctx.source.toString());
+        FileTree curr = FileTree.build(source.toString());
 
-        if (ctx.cache.cachedTree == null) {
-            curr.collectLeaves(ctx.source.toString(), changed);
+        if (cache.cachedTree == null) {
+            curr.collectLeaves(source.toString(), changed);
         } else {
-            FileTree.diff(ctx.cache.cachedTree, curr, diff);
+            FileTree.diff(cache.cachedTree, curr, diff);
         }
 
-        ctx.cache.newTree = curr;
+        cache.newTree = curr;
         return diff;
     }
 
 }
 
 class FileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
-    Context ctx;
+    Cache cache;
     int offset;
 
-    public FileManager(Context ctx, StandardJavaFileManager fm) {
+    public FileManager(Path source, CompileCache cache, StandardJavaFileManager fm) {
         super(fm);
-        this.ctx = ctx;
-        this.offset = ctx.source.toString().length() + 1;
+        this.cache = cache;
+        this.offset = source.toString().length() + 1;
     }
 
     @Override
@@ -162,8 +162,8 @@ class FileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
             String source = sibling.getName();
             source = source.substring(offset, source.length() - 5);
             String binary = className.replace(".", "/");
-            ctx.cache.sourceToBinaries.computeIfAbsent(source, k -> new HashSet<>()).add(binary);
-            ctx.cache.binaryToSource.put(binary, source);
+            cache.sourceToBinaries.computeIfAbsent(source, k -> new HashSet<>()).add(binary);
+            cache.binaryToSource.put(binary, source);
         }
         return super.getJavaFileForOutput(location, className, kind, sibling);
     }

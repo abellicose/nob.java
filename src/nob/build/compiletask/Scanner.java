@@ -28,8 +28,7 @@ public class Scanner {
     // This wasn't an original idea but this would allow us to continue in case
     // the program or some external program decided to generate code by itself.
     // Probably not but i can dream.
-    static void scan(List<String> changed, List<String> deleted, List<String> out, Context ctx) {
-        CompileCache cache = ctx.cache;
+    static void scan(List<String> changed, List<String> deleted, List<String> toRecompile, Path out, String packageName, CompileCache cache) {
         Set<String> toRecompile = new HashSet<>(changed.size() * 2);
 
         // delete deleted class files, update dependencies
@@ -41,7 +40,7 @@ public class Scanner {
                 for (String binary: cache.sourceToBinaries.remove(source)) { 
                     cache.binaryToSource.remove(binary);
                     try {
-                        Files.deleteIfExists(ctx.out.resolve(binary));
+                        Files.deleteIfExists(out.resolve(binary));
                     } catch (Exception e) {
                         Logger.debug("Couldn't delete " + binary);
                     }
@@ -85,7 +84,7 @@ public class Scanner {
                 Set<String> methods = new HashSet<>();
                 Set<String> calls = new HashSet<>();
                 ScanState state = new ScanState(ctx.packageName, methods, calls);
-                parseClass(binary, state, ctx);
+                parseClass(binary, state, out);
                 currMethods.computeIfAbsent(source, k -> new HashSet<>()).addAll(methods);
                 currCalls.computeIfAbsent(source, k -> new HashSet<>()).addAll(calls);
             }
@@ -140,15 +139,15 @@ public class Scanner {
         cache.sourceToCalledMethods.putAll(currCalls);
         cache.cachedTree = cache.newTree;
         for (String path: toRecompile) {
-            out.add(path);
+            toRecompile.add(path);
         }
     }
 
-    static void parseClass(String file, ScanState state, Context ctx) {
+    static void parseClass(String file, ScanState state, Path out) {
         Path path = Path.of(file + ".class");
         byte[] bytes;
         try {
-            bytes = Files.readAllBytes(ctx.out.resolve(path));
+            bytes = Files.readAllBytes(out.resolve(path));
         } catch (Exception e) {
             throw new NobException("Could not read class file", e);
         }
