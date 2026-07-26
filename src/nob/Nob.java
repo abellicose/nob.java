@@ -31,58 +31,52 @@ public class Nob {
 
             ctx.deps.add(new Dependency("org.ow2.asm", "asm", "9.10.1"));
 
-            graph.register(new CompileTask());
-            graph.register(new PackageTask());
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> graph.run(ctx)));
+            graph.createLifecycle("resolve");
+
+            graph.createLifecycle("compile");
+            graph.addAfter("compile", "resolve");
+
+            graph.createLifecycle("package");
+            graph.addAfter("package", "compile");
+            graph.addAfter("resolve", "package");
+
+            graph.registerTask(new ResolveTask());
+            graph.addTo("resolvetask", "resolve");
+            graph.registerTask(new Test());
+            graph.addTo("testtask", "resolve$start");
+
+            graph.registerTask(new CompileTask());
+            graph.addTo("compiletask", "compile");
+
+            graph.registerTask(new PackageTask());
+            graph.addTo("packagetask", "package");
+
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> { 
+                try {
+                    graph.run("package", ctx);
+                } catch (NobException e) {
+                    handle(e);
+                }
+                Logger.stop();
+            }));
         } catch (NobException e) {
             handle(e);
-        }
-    }
-
-    public void use(Plugin... plugins) {
-        for (int i = 0; i < plugins.length; i++) {
-            plugins[i].apply(graph);
-        }
-    }
-
-    public void compile(Consumer<CompileConfig> consumer) {
-        init();
-        try {
-            consumer.accept(ctx.compileConfig);
-            graph.enqueue("compile");
-        } catch (NobException e) {
-            handle(e);
-        }
-    }
-
-    public void compile() {
-        init();
-        try {
-            graph.enqueue("compile");
-        } catch (NobException e) {
-            handle(e);
+            System.exit(1);
         }
     }
 
     private void handle(NobException e) {
-        System.err.println(e.getMessage());
+        Logger.error(e.getMessage());
         if (e.getCause() != null) e.getCause().printStackTrace();
-        System.exit(1);
-    }
-
-    public void jar() {
-        init();
-        graph.enqueue("package");
-    }
-
-    public void jar(Consumer<JarConfig> consumer) {
-        init();
-        try {
-            consumer.accept(ctx.jarConfig);
-            graph.enqueue("package");
-        } catch (NobException e) {
-            handle(e);
-        }
     }
 }
 
+class Test implements Task {
+    public String id() {
+        return "testtask";
+    }
+
+    public void execute(Context ctx) {
+        Logger.info("Executing testtask");
+    }
+}

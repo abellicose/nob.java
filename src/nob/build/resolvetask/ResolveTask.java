@@ -50,7 +50,7 @@ public class ResolveTask implements Task {
     public static final ConcurrentHashMap<String, Float> progress = new ConcurrentHashMap<>();
 
     public String id() {
-        return "resolve";
+        return "resolvetask";
     }
 
     public void execute(Context ctx) {

@@ -12,7 +12,6 @@ import nob.build.Graph;
 
 public class ResolveDeps implements Plugin {
     public void apply(Graph graph) {
-        graph.register(new ResolveTask());
     }
 }
 

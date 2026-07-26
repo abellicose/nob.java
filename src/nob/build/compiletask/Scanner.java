@@ -28,8 +28,8 @@ public class Scanner {
     // This wasn't an original idea but this would allow us to continue in case
     // the program or some external program decided to generate code by itself.
     // Probably not but i can dream.
-    static void scan(List<String> changed, List<String> deleted, List<String> toRecompile, Path out, String packageName, CompileCache cache) {
-        Set<String> toRecompile = new HashSet<>(changed.size() * 2);
+    static void scan(List<String> changed, List<String> deleted, List<String> filesToRecompile, Path out, String packageName, CompileCache cache) {
+         Set<String> toRecompile = new HashSet<>(changed.size() * 2);
 
         // delete deleted class files, update dependencies
         deleted.forEach(path -> {
@@ -83,7 +83,7 @@ public class Scanner {
             for (String binary: cache.sourceToBinaries.get(source)) {
                 Set<String> methods = new HashSet<>();
                 Set<String> calls = new HashSet<>();
-                ScanState state = new ScanState(ctx.packageName, methods, calls);
+                ScanState state = new ScanState(packageName, methods, calls);
                 parseClass(binary, state, out);
                 currMethods.computeIfAbsent(source, k -> new HashSet<>()).addAll(methods);
                 currCalls.computeIfAbsent(source, k -> new HashSet<>()).addAll(calls);
@@ -139,7 +139,7 @@ public class Scanner {
         cache.sourceToCalledMethods.putAll(currCalls);
         cache.cachedTree = cache.newTree;
         for (String path: toRecompile) {
-            toRecompile.add(path);
+            filesToRecompile.add(path);
         }
     }
 

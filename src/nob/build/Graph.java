@@ -13,210 +13,328 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Stack;
+import java.util.Deque;
+import java.util.ArrayDeque;
 import nob.NobException;
 import nob.Task;
 
+// Im autistic and its hard to hold it in my head without using metaphors
+// inlet — where a node's flow enters
+// outlet — where a node's flow exits
+// downstream — the map recording which inlets each outlet feeds into
+// the stream itself — not a variable, just what run() does when it walks outlet → inlet → outlet → inlet...
+
 public class Graph {
+    private static final String INLET_SUFFIX = "$start"; //
+    private static final String OUTLET_SUFFIX = "$end";
     private Map<String, Task> registry = new HashMap<>();
-    //          Task    Dependents
-    //          Parent  Child
-    //          Marker  Node
-    private Map<String, Set<String>> edges = new HashMap<>();
-    private Map<String, Integer> degree = new HashMap<>();
+    //          Prerequisite->Task: Prerequisite runs first, then Task
+    private Map<String, Set<String>> downstream = new HashMap<>();
+    private Map<String, Integer> degree = new HashMap<>(); // how many outlets flow into this inlet
     private Set<String> queue = new HashSet<>();
 
-    public void createLifecycle(String dependency) {
-        String depStart = dependency + "$start";
-        String depEnd = dependency + "$end";
-        if (registry.containsKey(depStart) || registry.containsKey(depEnd)) {
-            throw new NobException("Task or lifecycle " + dependency + " already exists");
+    public void createLifecycle(String lifecycle) {
+        String inlet = lifecycle + INLET_SUFFIX;
+        String outlet = lifecycle + OUTLET_SUFFIX;
+        if (registry.containsKey(inlet) || registry.containsKey(outlet)) {
+            throw new NobException("Cannot create lifecycle " + lifecycle + ", already exists!");
         }
-        registry.put(depStart, new Lifecycle(start));
-        registry.put(depEnd, new Lifecycle(end));
-        degrees.put(depStart, 0); degrees.put(depEnd, 0);
+
+        registry.put(inlet, new Lifecycle(inlet));
+        downstream.put(inlet, new HashSet<>());
+        degree.put(inlet, 0);
+
+        registry.put(outlet, new Lifecycle(outlet));
+        downstream.put(outlet, new HashSet<>());
+        degree.put(outlet, 0);
+        Logger.debug("Lifecycle " + lifecycle + " created");
     }
 
-    // TODO: same task can't run twice. do we want that?
-    public void registerTo(Task task, String dependency) {
-        String id = task.id();
-        if (registry.containsKey(id)) {
-            throw new NobException("Task " + id + " already exists!");
-        }
-        String start = dependency + "$start";
-        String end = dependency + "$end";
-        // lifecycles need to be defined first because they have specific configuration (orders and such)
-        if (!registry.containsKey(start) || !registry.containsKey(end)) {
-            throw new NobException("Lifecycle "  + dependency + " not found!");
+    public void registerTask(Task task) {
+        String inlet = task.id();
+        if (registry.containsKey(inlet)) {
+            throw new NobException("Cannot register task " + inlet + ", already exists!");
         }
 
-        // Children of start, tasks that runs after $start
-        //                    This <----- depends on <-------- This
-        edges.computeIfAbsent(start, k -> new HashSet<>()).add(id);
-        edges.computeIfAbsent(id, k -> new HashSet<>()).add(end);
-        registry.put(id, task);
-        degrees.put(degrees.get());
+        if (registry.containsKey(inlet + INLET_SUFFIX)) {
+            throw new NobException("Cannot register task, a lifecycle with name " + inlet + " exists!");
+        }
+
+        registry.put(inlet, task);
+        downstream.put(inlet, new HashSet<>());
+        degree.put(inlet, 0);
+
+        Logger.debug("Task " + task.id() + " registered");
     }
 
-    public void addAfter(String task, String dependency) {
-        String depKey = dependency;
-        if (!registry.containsKey(depKey)) { // if it contains, its a normal task. otherwise we check for group
-            depKey = dependency + "$end";
-            if (!registry.containsKey(depKey)) {
-                // create new or throw?
-                throw new NobException("Task or lifecycle "  + dependency + " not found!");
+    public void addTo(String task, String prerequisite) {
+        String depOutlet = prerequisite;
+        boolean depIsTask = true;
+        if (!registry.containsKey(depOutlet)) {
+            depOutlet += INLET_SUFFIX;
+            if (!registry.containsKey(depOutlet)) {
+                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependency not found!");
+            }
+            depIsTask = false;
+        }
+
+        String taskInlet = task;
+        if (!registry.containsKey(taskInlet)) {
+            taskInlet += INLET_SUFFIX;
+            if (!registry.containsKey(taskInlet)) {
+                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependent not found!");
             }
         }
 
-        String tskKey = task;
-        if (!registry.containsKey(tskKey)) {
-            tskKey = task + "$start";
-            if (!registry.containsKey(tskKey)) {
-                throw new NobException("Task or lifecycle "  + dependency + " not found!");
+        String taskOutlet = task;
+        if (!registry.containsKey(taskOutlet)) {
+            taskOutlet += OUTLET_SUFFIX;
+            if (!registry.containsKey(taskOutlet)) {
+                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependent not found!");
             }
         }
 
-        edges.get(depKey).add(tskKey);
-    }
-
-    public void putAfter(String task, String dependency) {
-        String depKey = dependency;
-        if (!registry.containsKey(depKey)) { // if it contains, its a normal task. otherwise we check for group
-            depKey = dependency + "$end";
-            if (!registry.containsKey(depKey)) {
-                // create new or throw?
-                throw new NobException("Task or lifecycle "  + dependency + " not found!");
+        String depInlet = prerequisite;
+        if (!registry.containsKey(depInlet)) {
+            depInlet += OUTLET_SUFFIX;
+            if (!registry.containsKey(depInlet)) {
+                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependency not found!");
             }
         }
 
-        String tskStart = task;
-        String tskEnd = task;
-        if (!registry.containsKey(taskStart)) {
-            tskKey = task + "$start";
-            tskEnd = task + "$end";
-            if (!registry.containsKey(tskKey)) {
-                throw new NobException("Task or lifecycle "  + dependency + " not found!");
+        if (downstream.get(depOutlet).add(taskInlet)) {
+            degree.put(taskInlet, degree.get(taskInlet) + 1);
+            Logger.debug("Task or lifestyle " + taskInlet + " added after " + depOutlet + ". Degree: " + degree.get(taskInlet));
+        }
+
+        if (!depIsTask && downstream.get(taskOutlet).add(depInlet)) {
+            degree.put(depInlet, degree.get(depInlet) + 1);
+            Logger.debug("Task or lifestyle " + depInlet + " added after " + taskOutlet + ". Degree: " + degree.get(depInlet));
+        }
+
+    }
+
+    public void addAfter(String task, String prerequisite) {
+        String outlet = prerequisite;
+        if (!registry.containsKey(outlet)) {
+            outlet += OUTLET_SUFFIX;
+            if (!registry.containsKey(outlet)) {
+                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependency not found!");
             }
         }
 
-        edges.put(tskEnd, edges.get(depKey));
-        edges.put(depKey, Set.of(tskStart));
+        String inlet = task;
+        if (!registry.containsKey(inlet)) {
+            inlet += INLET_SUFFIX;
+            if (!registry.containsKey(inlet)) {
+                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependent not found!");
+            }
+        }
+
+        if (downstream.get(outlet).add(inlet)) {
+            degree.put(inlet, degree.get(inlet) + 1);
+            Logger.debug("Task or lifestyle " + task + " added to " + prerequisite + ". Degree: " + degree.get(inlet));
+        }
     }
 
-    public void enqueue(String taskId) {
-        if (!registry.containsKey(taskId)) {
-            throw new NobException("No task with id: " + taskId + " registered.");
+    public void run(String task, Context ctx) {
+        String targetOutlet = task; // outlet, needs to end here. the task that needs to end
+        if (!registry.containsKey(targetOutlet)) {
+            targetOutlet += INLET_SUFFIX;
+            if (!registry.containsKey(targetOutlet)) {
+                throw new NobException("Task or group " + task + " is not registered! Cannot execute.");
+            }
         }
-        if (!queue.contains(taskId)) {
-            queue.add(taskId);
-        }
-    }
 
-    public void run(Context ctx, String temp) {
-        int queueSize = queue.size();
-        if (queueSize == 0) {
-            throw new NobException("No tasks queued for execution.");
-        }
-        List<String> plan = plan();
-    }
+        //  if downstream is maps of inlets to streams, upstream is maps of streams to inlets
+        Map<String, Set<String>> upstream = new HashMap<>();
 
-    // TODO: Revert Edge Detection
-    // execution plan
-    private Set<String> plan() {
+        for (Map.Entry<String, Set<String>> ds: downstream.entrySet()) {
+            String outlet = ds.getKey();
+            for (String inlet: ds.getValue()) {
+                upstream.computeIfAbsent(inlet, k -> new HashSet<>()).add(outlet);
+            }
+        }
+
+        // collect
+        //          valves for stream to go through
+        Set<String> valves = new HashSet<>();
+        Map<String, Integer> tmpDegree = new HashMap<>();
+        Deque<String> stack = new ArrayDeque<>();
+        Set<String> zeroDegreeValves = new HashSet<>();
+        stack.add(targetOutlet);
+
+        while(!stack.isEmpty()) {
+            String inlet = stack.pop();
+            if (!valves.add(inlet)) continue; 
+
+            int inletDegree = degree.get(inlet);
+            tmpDegree.put(inlet, inletDegree);
+            for (String outlet: upstream.getOrDefault(inlet, Set.of())) {
+                stack.push(outlet);
+            }
+
+            if (inletDegree == 0) {
+                zeroDegreeValves.add(inlet);
+            }
+        }
+
+        stack.clear();
+        stack.add(targetOutlet);
+
         Set<String> visiting = new HashSet<>();
         Set<String> visited = new HashSet<>();
-        List<String> result = new ArrayList<>();
+        Deque<String> path = new ArrayDeque<>();
+        while(!stack.isEmpty()) {
+            String outlet = stack.peek();
+            Set<String> inlets = downstream.get(outlet);
+            int inletCnt = 0;
 
-        for (String task: queue) {
-            if (visited.contains(task)) continue;
-            topoSort(task, visiting, visited, result);
-        }
-
-        return result;
-    }
-
-    private void topoSort(String node, Set<String> visiting, Set<String> visited, List<String> result) {
-        // TODO: Visited Check here instead of caller? (maybe not, check runs for each subtree, waste)
-        if (visiting.contains(node)) {
-            throw new NobException("Circular dependency at: " + node);
-        }
-        visiting.add(node);
-        Set<String> edgeList = edges.get(node);
-
-        if (edgeList != null) {
-            for (String edge: edgeList) {
-                if (!visited.contains(edge)) {
-                    topoSort(edge, visiting, visited, result);
-                }
-            }
-        }
-
-        visiting.remove(node);
-        visited.add(node);
-        result.add(node);
-    }
-
-    // TODO: Rewrite THIS SHIT - Change LLM CODE
-    public void run(Context ctx) {
-        int queueSize = queue.size();
-        if (queueSize == 0) {
-            throw new NobException("No tasks queued for execution.");
-        }
-
-        List<String> result = new ArrayList<>();
-        Set<String> visited = new HashSet<>();
-        Set<String> visiting = new HashSet<>();
-        Stack<Node> stack = new Stack<>();
-
-        for (String task: queue) {
-            if (visited.contains(task)) continue;
-            stack.push(new Node(task, false));
-            while (!stack.isEmpty()) {
-                Node curr = stack.pop();
-
-                if (curr.done()) {
-                    visiting.remove(curr.task());
-                    visited.add(curr.task());
-                    result.add(curr.task());
-                    continue;
-                }
-
-                if (visiting.contains(curr.task())) {
-                    throw new NobException("Circular dependency at: " + curr.task());
-                }
-
-                visiting.add(curr.task());
-                stack.push(new Node(curr.task(), true));
-
-                for (String dep: edges.get(curr.task())) {
-                    if (!visited.contains(dep)) {
-                        stack.push(new Node(dep, false));
+            visiting.add(outlet);
+            path.push(outlet);
+            for (String inlet: inlets) {
+                if (visited.contains(inlet)) continue;
+                stack.push(inlet);
+                inletCnt++;
+                if (visiting.contains(inlet)) {
+                    List<String> ring = new ArrayList<>();
+                    path.push(inlet);
+                    while(!path.isEmpty()) {
+                        ring.add(path.pop());
                     }
+                    throw new NobException(renderRing(ring));
                 }
+            }
+
+            if (inletCnt == 0) {
+                stack.pop();
+                visiting.remove(outlet);
+                visited.add(outlet);
+                path.pop();
             }
         }
 
-        for (String taskId : result) {
-            Logger.info("Running " + taskId);
-            registry.get(taskId).execute(ctx);
-            Logger.info("Task " + taskId + " ended");
+        stack.clear();
+        stack.addAll(zeroDegreeValves);
+        Logger.debug("Stack: " + zeroDegreeValves);
+        while (!stack.isEmpty()) {
+            String outlet = stack.pop();
+            executeTask(registry.get(outlet), ctx);
+
+            for (String inlet: downstream.get(outlet)) {
+                if (!valves.contains(inlet)) continue;
+
+                int newDegree = tmpDegree.get(inlet) - 1;
+                tmpDegree.put(inlet, newDegree);
+
+                if (newDegree == 0) {
+                    stack.push(inlet);
+                }
+            }
         }
     }
 
-    record Node(String task, boolean done){}
-}
 
+    public void executeTask(Task task, Context ctx) {
+        // placeholder
+        task.execute(ctx);
+    }
+
+    // made by claude <3
+    private String renderRing(List<String> ring) {
+        String anchor = ring.get(0);
+        int close = -1;
+        for (int i = 1; i < ring.size(); i++) {
+            if (ring.get(i).equals(anchor)) { close = i; break; }
+        }
+        List<String> loop = (close < 0) ? ring : ring.subList(0, close + 1);
+
+        List<String> tokens = collapse(loop);
+        List<String> nodes = new ArrayList<>(tokens);
+        nodes.add(tokens.get(0));
+
+        List<String> rows = new ArrayList<>();
+        for (int i = 0; i < nodes.size(); i++) {
+            boolean last = (i == nodes.size() - 1);
+            rows.add("  " + nodes.get(i) + (last ? "   ↺ back to top" : ""));
+            if (!last) rows.add("   ▼");
+        }
+
+        String title = " Circular dependency ";
+        int inner = title.length();
+        for (String r : rows) inner = Math.max(inner, r.length() + 1);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(Logger.RESET).append('\n');
+        sb.append('╭').append('─').append(title);
+        for (int k = 0; k < inner - title.length() + 1; k++) sb.append('─');
+        sb.append('╮').append('\n');
+        for (String r : rows) {
+            sb.append('│').append(' ').append(r);
+            for (int k = r.length(); k < inner; k++) sb.append(' ');
+            sb.append(' ').append('│').append('\n');
+        }
+        sb.append('╰');
+        for (int k = 0; k < inner + 2; k++) sb.append('─');
+        sb.append('╯');
+        return sb.toString();
+    }
+
+    private List<String> collapse(List<String> loop) {
+        List<String> cyc = new ArrayList<>(loop);
+        if (cyc.size() > 1 && cyc.get(0).equals(cyc.get(cyc.size() - 1))) {
+            cyc.remove(cyc.size() - 1);
+        }
+        for (int i = 0; i < cyc.size(); i++) {
+            if (cyc.get(i).endsWith(INLET_SUFFIX)) { Collections.rotate(cyc, -i); break; }
+        }
+
+        List<String> tokens = new ArrayList<>();
+        int i = 0;
+        while (i < cyc.size()) {
+            String node = cyc.get(i);
+            if (node.endsWith(INLET_SUFFIX)) {
+                String group = node.substring(0, node.length() - INLET_SUFFIX.length());
+                String end = group + OUTLET_SUFFIX;
+                List<String> members = new ArrayList<>();
+                int j = i + 1;
+                while (j < cyc.size() && !cyc.get(j).equals(end)) {
+                    String m = cyc.get(j);
+                    if (!m.endsWith(INLET_SUFFIX) && !m.endsWith(OUTLET_SUFFIX)) members.add(m);
+                    j++;
+                }
+                if (members.isEmpty()) tokens.add(group);
+                else tokens.addAll(members);
+                i = (j < cyc.size()) ? j + 1 : j;
+            } else {
+                tokens.add(node);
+                i++;
+            }
+        }
+        return tokens;
+    }
+}
 
 class Lifecycle implements Task {
     private String id;
 
-    Plugin(String id) {
+    Lifecycle(String id) {
         this.id = id;
     }
 
     public String id() {
         return this.id;
     }
+
     public void execute(Context ctx) {
+        if (this.id.endsWith("$start")) {
+            Logger.info("============================================");
+        }
+        Logger.info("Group task: " + this.id);
+        if (this.id.endsWith("$end")) {
+            Logger.info("============================================");
+        }
     }
 }

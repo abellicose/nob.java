@@ -49,7 +49,7 @@ import static org.objectweb.asm.Opcodes.*;
 public class CompileTask implements Task {
 
     public String id() {
-        return "compile";
+        return "compiletask";
     }
 
     public List<String> dependsOn() { 
@@ -105,7 +105,7 @@ public class CompileTask implements Task {
                 }
 
                 List<String> out = new ArrayList<>(toRecompile.size());
-                Scanner.scan(toRecompile, toDelete, out, ctx);
+                Scanner.scan(toRecompile, toDelete, out, ctx.out, ctx.packageName, ctx.cache);
                 toRecompile = out;
                 toDelete = List.of();
 
@@ -147,7 +147,7 @@ public class CompileTask implements Task {
 }
 
 class FileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
-    Cache cache;
+    CompileCache cache;
     int offset;
 
     public FileManager(Path source, CompileCache cache, StandardJavaFileManager fm) {

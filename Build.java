@@ -13,8 +13,7 @@ public class Build {
             packageName = "nob";
             jarName = "Nob.jar";
         }};
-        nob.use(new nob.build.ResolveDeps());
-        nob.compile();
-        nob.jar();
+        nob.debug = true;
+        nob.init();
     }
 }

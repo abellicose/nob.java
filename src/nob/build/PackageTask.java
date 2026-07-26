@@ -17,11 +17,11 @@ import nob.Task;
 
 public class PackageTask implements Task{
     public String id() {
-        return "package";
+        return "packagetask";
     }
 
     public List<String> dependsOn() {
-        return List.of("compile");
+        return List.of("compiletask");
     }
 
     public void execute(Context ctx) {
