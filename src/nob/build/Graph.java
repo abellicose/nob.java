@@ -52,47 +52,46 @@ public class Graph {
         Logger.debug("Lifecycle " + lifecycle + " created");
     }
 
-    public void registerTask(Task task) {
-        String inlet = task.id();
-        if (registry.containsKey(inlet)) {
-            throw new NobException("Cannot register task " + inlet + ", already exists!");
+    public void registerTask(String signature, Task task) {
+        if (registry.containsKey(signature)) {
+            throw new NobException("Cannot register task " + signature + ", already exists!");
         }
 
-        if (registry.containsKey(inlet + INLET_SUFFIX)) {
+        if (registry.containsKey(signature + INLET_SUFFIX)) {
             throw new NobException("Cannot register task, a lifecycle with name " + inlet + " exists!");
         }
 
-        registry.put(inlet, task);
-        downstream.put(inlet, new HashSet<>());
-        degree.put(inlet, 0);
+        registry.put(signature, task);
+        downstream.put(signature, new HashSet<>());
+        degree.put(signature, 0);
 
-        Logger.debug("Task " + task.id() + " registered");
+        Logger.debug("Task " + signature + " registered");
     }
 
-    public void addTo(String task, String prerequisite) {
+    public void addTo(String taskSignature, String prerequisite) {
         String depOutlet = prerequisite;
         boolean depIsTask = true;
         if (!registry.containsKey(depOutlet)) {
             depOutlet += INLET_SUFFIX;
             if (!registry.containsKey(depOutlet)) {
-                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependency not found!");
+                throw new NobException("Cannot add " + taskSignature + " to " + prerequisite + ", dependency not found!");
             }
             depIsTask = false;
         }
 
-        String taskInlet = task;
+        String taskInlet = taskSignature;
         if (!registry.containsKey(taskInlet)) {
             taskInlet += INLET_SUFFIX;
             if (!registry.containsKey(taskInlet)) {
-                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependent not found!");
+                throw new NobException("Cannot add " + taskSignature + " to " + prerequisite + ", dependent not found!");
             }
         }
 
-        String taskOutlet = task;
+        String taskOutlet = taskSignature;
         if (!registry.containsKey(taskOutlet)) {
             taskOutlet += OUTLET_SUFFIX;
             if (!registry.containsKey(taskOutlet)) {
-                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependent not found!");
+                throw new NobException("Cannot add " + taskSignature + " to " + prerequisite + ", dependent not found!");
             }
         }
 
@@ -100,7 +99,7 @@ public class Graph {
         if (!registry.containsKey(depInlet)) {
             depInlet += OUTLET_SUFFIX;
             if (!registry.containsKey(depInlet)) {
-                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependency not found!");
+                throw new NobException("Cannot add " + taskSignature + " to " + prerequisite + ", dependency not found!");
             }
         }
 
@@ -116,35 +115,35 @@ public class Graph {
 
     }
 
-    public void addAfter(String task, String prerequisite) {
+    public void addAfter(String taskSignature, String prerequisite) {
         String outlet = prerequisite;
         if (!registry.containsKey(outlet)) {
             outlet += OUTLET_SUFFIX;
             if (!registry.containsKey(outlet)) {
-                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependency not found!");
+                throw new NobException("Cannot add " + taskSignature + " to " + prerequisite + ", dependency not found!");
             }
         }
 
-        String inlet = task;
+        String inlet = taskSignature;
         if (!registry.containsKey(inlet)) {
             inlet += INLET_SUFFIX;
             if (!registry.containsKey(inlet)) {
-                throw new NobException("Cannot add " + task + " to " + prerequisite + ", dependent not found!");
+                throw new NobException("Cannot add " + taskSignature + " to " + prerequisite + ", dependent not found!");
             }
         }
 
         if (downstream.get(outlet).add(inlet)) {
             degree.put(inlet, degree.get(inlet) + 1);
-            Logger.debug("Task or lifestyle " + task + " added to " + prerequisite + ". Degree: " + degree.get(inlet));
+            Logger.debug("Task or lifestyle " + taskSignature + " added to " + prerequisite + ". Degree: " + degree.get(inlet));
         }
     }
 
-    public void run(String task, Context ctx) {
-        String targetOutlet = task; // outlet, needs to end here. the task that needs to end
+    public void run(String taskSignature, Context ctx) {
+        String targetOutlet = taskSignature; // outlet, needs to end here. the task that needs to end
         if (!registry.containsKey(targetOutlet)) {
             targetOutlet += INLET_SUFFIX;
             if (!registry.containsKey(targetOutlet)) {
-                throw new NobException("Task or group " + task + " is not registered! Cannot execute.");
+                throw new NobException("Task or group " + taskSignature + " is not registered! Cannot execute.");
             }
         }
 

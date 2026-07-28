@@ -31,5 +31,9 @@ public class Registrar {
     public void addAfter(String task, String prerequisite) {
         this.graph.addAfter(task, prerequisite);
     }
+
+    public String createSignature(String pluginId, String taskId) {
+        return pluginId + ":" + taskId;
+    }
 }
 
