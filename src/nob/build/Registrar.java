@@ -11,9 +11,9 @@ import nob.Task;
 
 public class Registrar {
     private final String pluginId;
-    private final Graph graph;
+    private final TaskPipeline graph;
 
-    public Registrar(String pluginId, Graph graph) {
+    public Registrar(String pluginId, TaskPipeline graph) {
         this.pluginId = pluginId;
         this.graph = graph;
     }

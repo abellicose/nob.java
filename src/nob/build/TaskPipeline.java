@@ -1,5 +1,5 @@
 /* ======================================
- * File: Graph.java
+ * File: TaskPipeline.java
  * Date: 2026-05-31
  * Creator: Osama
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
@@ -26,7 +26,7 @@ import nob.Task;
 // downstream — the map recording which inlets each outlet feeds into
 // the stream itself — not a variable, just what run() does when it walks outlet → inlet → outlet → inlet...
 
-public class Graph {
+public class TaskPipeline {
     private static final String INLET_SUFFIX = "$start"; //
     private static final String OUTLET_SUFFIX = "$end";
     private Map<String, Task> registry = new HashMap<>();
