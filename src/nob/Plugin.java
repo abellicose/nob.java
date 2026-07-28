@@ -7,9 +7,10 @@
 
 package nob;
 
-import nob.build.Graph;
+import nob.build.Registrar;
 
 public interface Plugin {
-    void apply(Graph graph);
+    String id();
+    void apply(Registrar registrar);
 }
 

@@ -8,10 +8,16 @@
 package nob.build;
 
 import nob.Plugin;
-import nob.build.Graph;
+import nob.build.Registrar;
 
 public class ResolveDeps implements Plugin {
-    public void apply(Graph graph) {
+    private static final String ID = "maven";
+
+    public String id() {
+        return ID;
+    }
+
+    public void apply(Registrar registrar) {
     }
 }
 
