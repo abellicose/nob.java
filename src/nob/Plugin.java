@@ -7,9 +7,14 @@
 
 package nob;
 
+import java.util.List;
 import nob.build.Registrar;
 
 public interface Plugin {
+    default List<String> dependsOn() {
+        return List.of();
+    }
+
     String id();
     void apply(Registrar registrar);
 }
