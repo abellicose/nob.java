@@ -7,12 +7,14 @@
 
 package nob.build;
 
+import nob.Task;
+
 public class Registrar {
-    private final String id;
+    private final String pluginId;
     private final Graph graph;
 
-    public Registrar(String id, Graph graph) {
-        this.id = id;
+    public Registrar(String pluginId, Graph graph) {
+        this.pluginId = pluginId;
         this.graph = graph;
     }
 
@@ -20,16 +22,18 @@ public class Registrar {
         this.graph.createLifecycle(lifecycle);
     }
 
-    public void registerTask(Task task) {
-        this.graph.registerTask(task);
+    public String registerTask(Task task) {
+        String signature = createSignature(this.pluginId, task.id());
+        this.graph.registerTask(signature, task);
+        return signature;
     }
 
-    public void addTo(String task, String prerequisite) {
-        this.graph.addTo(task, prerequisite);
+    public void addTo(String signature, String prerequisite) {
+        this.graph.addTo(signature, prerequisite);
     }
 
-    public void addAfter(String task, String prerequisite) {
-        this.graph.addAfter(task, prerequisite);
+    public void addAfter(String signature, String prerequisite) {
+        this.graph.addAfter(signature, prerequisite);
     }
 
     public String createSignature(String pluginId, String taskId) {

@@ -29,27 +29,29 @@ public class Nob {
             if (ctx != null) return;
             ctx = Context.load(this);
 
+            Registrar reg = new Registrar("maven", graph);
+
             ctx.deps.add(new Dependency("org.ow2.asm", "asm", "9.10.1"));
 
-            graph.createLifecycle("resolve");
+            reg.createLifecycle("resolve");
 
-            graph.createLifecycle("compile");
-            graph.addAfter("compile", "resolve");
+            reg.createLifecycle("compile");
+            reg.addAfter("compile", "resolve");
 
-            graph.createLifecycle("package");
-            graph.addAfter("package", "compile");
-            graph.addAfter("resolve", "package");
+            reg.createLifecycle("package");
+            reg.addAfter("package", "compile");
+            reg.addAfter("resolve", "package");
 
-            graph.registerTask(new ResolveTask());
-            graph.addTo("resolvetask", "resolve");
-            graph.registerTask(new Test());
-            graph.addTo("testtask", "resolve$start");
+            String resSig = reg.registerTask(new ResolveTask());
+            reg.addTo(resSig, "resolve");
+            String testSig = reg.registerTask(new Test());
+            reg.addTo(testSig, "resolve$start");
 
-            graph.registerTask(new CompileTask());
-            graph.addTo("compiletask", "compile");
+            String compSig = reg.registerTask(new CompileTask());
+            reg.addTo(compSig, "compile");
 
-            graph.registerTask(new PackageTask());
-            graph.addTo("packagetask", "package");
+            String pkgSig = reg.registerTask(new PackageTask());
+            reg.addTo(pkgSig, "package");
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> { 
                 try {
