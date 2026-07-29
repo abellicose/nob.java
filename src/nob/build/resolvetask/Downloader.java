@@ -7,6 +7,7 @@
 
 package nob.build;
 
+import nob.build.dependencyresolver.Dependency;
 import nob.NobException;
 import java.util.List;
 import java.util.Map;

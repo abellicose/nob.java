@@ -7,7 +7,11 @@
 
 package nob;
 
+import nob.build.dependencyresolver.Dependency;
 import nob.build.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.function.Consumer;
 
 public class Nob {
@@ -29,33 +33,20 @@ public class Nob {
             if (ctx != null) return;
             ctx = Context.load(this);
 
-            Registrar reg = new Registrar("maven", graph);
+            PluginPipeline pp = new PluginPipeline(graph);
+            Test first = new Test("first", "second");
+            Test second = new Test("second", "third");
+            Test third = new Test("third");
+            pp.register(first);
+            pp.register(second);
+            pp.register(third);
 
             ctx.deps.add(new Dependency("org.ow2.asm", "asm", "9.10.1"));
 
-            reg.createLifecycle("resolve");
-
-            reg.createLifecycle("compile");
-            reg.addAfter("compile", "resolve");
-
-            reg.createLifecycle("package");
-            reg.addAfter("package", "compile");
-            reg.addAfter("resolve", "package");
-
-            String resSig = reg.registerTask(new ResolveTask());
-            reg.addTo(resSig, "resolve");
-            String testSig = reg.registerTask(new Test());
-            reg.addTo(testSig, "resolve$start");
-
-            String compSig = reg.registerTask(new CompileTask());
-            reg.addTo(compSig, "compile");
-
-            String pkgSig = reg.registerTask(new PackageTask());
-            reg.addTo(pkgSig, "package");
-
             Runtime.getRuntime().addShutdownHook(new Thread(() -> { 
                 try {
-                    graph.run("package", ctx);
+                    // graph.run("package", ctx);
+                    pp.run();
                 } catch (NobException e) {
                     handle(e);
                 }
@@ -73,12 +64,29 @@ public class Nob {
     }
 }
 
-class Test implements Task {
-    public String id() {
-        return "testtask";
+class Test implements Plugin {
+    private final String id;
+    private final List<String> deps;
+
+    public Test(String id) {
+        this.id = id;
+        this.deps = List.of();
     }
 
-    public void execute(Context ctx) {
+    public Test(String id, String... deps) {
+        this.id = id;
+        this.deps = new ArrayList<>(Arrays.asList(deps));
+    }
+
+    public String id() {
+        return this.id;
+    }
+
+    public List<String> dependsOn() {
+        return this.deps;
+    }
+
+    public void apply(Registrar reg) {
         Logger.info("Executing testtask");
     }
 }

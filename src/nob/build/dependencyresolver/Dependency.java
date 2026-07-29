@@ -5,7 +5,7 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob.build;
+package nob.build.dependencyresolver;
 
 import java.util.Objects;
 import java.util.Set;

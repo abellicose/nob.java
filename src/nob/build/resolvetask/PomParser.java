@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLInputFactory;
+import nob.build.dependencyresolver.Dependency;
 
 import static javax.xml.stream.XMLStreamConstants.*;
 

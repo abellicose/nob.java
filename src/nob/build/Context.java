@@ -7,6 +7,7 @@
 
 package nob.build;
 
+import nob.build.dependencyresolver.Dependency;
 import nob.CompileConfig;
 import nob.JarConfig;
 import nob.Nob;
@@ -32,7 +33,7 @@ public class Context {
     Path libs           = Path.of("build/libs");
     Path jarOut         = Path.of("build/jars");
     Path cacheFile      = Path.of("build/nob.cache");
-    Path globalCache    = Path.of(System.getProperty("user.home"), ".m2", "repository");
+    Path globalCache    = Path.of(System.getProperty("user.home"), ".nob", "repository", "maven");
 
     String packageName  = null;
     String mainClass    = null;
