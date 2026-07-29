@@ -49,5 +49,14 @@ public class Registrar {
     public <T> T getState(String sig, Class<T> type) {
         return service.getState(sig, type);
     }
+
+    // TODO: Check if config being set for exists in the plugins dependencies or not.
+    public void setConfig(String configSignature, Object object) {
+        service.setConfig(configSignature, object);
+    }
+
+    public <T> T getConfig(String configSignature, Class<T> type) {
+        return service.getConfig(configSignature, type);
+    }
 }
 

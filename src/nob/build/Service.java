@@ -15,6 +15,8 @@ import nob.NobException;
 public class Service {
     // String is signature
     private Map<String, Object> states = new HashMap<>();
+    private Map<String, Object> configs = new HashMap<>();
+    private boolean frozen = false;
     
     public void setState(String sig, Object state) {
         states.put(sig, state);
@@ -22,6 +24,21 @@ public class Service {
 
     public <T> T getState(String sig, Class<T> type) {
         return type.cast(states.get(sig));
+    }
+
+    public void setConfig(String sig, Object state) {
+        if (frozen) {
+            throw new NobException("Config is currently frozen, cannot be edited during execution");
+        }
+        configs.put(sig, state);
+    }
+
+    public <T> T getConfig(String sig, Class<T> type) {
+        return type.cast(configs.get(sig));
+    }
+
+    public void freeze() {
+        frozen = true;
     }
 }
 
