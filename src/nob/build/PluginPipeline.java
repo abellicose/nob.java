@@ -22,9 +22,11 @@ public class PluginPipeline {
     Map<String, Plugin> registry = new HashMap<>();
     Map<String, List<String>> downstream = new HashMap<>();
     final TaskPipeline tp;
+    final Service service;
 
-    public PluginPipeline(TaskPipeline tp) {
+    public PluginPipeline(TaskPipeline tp, Service service) {
         this.tp = tp;
+        this.service = service;
     }
 
     public void register(Plugin plugin) {
@@ -36,17 +38,21 @@ public class PluginPipeline {
         registry.put(pluginId, plugin);
         for (String ds: plugin.dependsOn()) {
             downstream.computeIfAbsent(ds, k -> new ArrayList<>()).add(pluginId);
+            Logger.debug("registry: " + pluginId + " depends on " + ds);
         }
 
     }
 
     // Runs and instantiates the entire loaded plugin graph
     public void run() {
+        System.out.println(downstream);
+/*
         for (String dep : downstream.keySet()) {
             if (!registry.containsKey(dep)) {
                 throw new NobException("Plugin " + dep + " is depended on but was never registered");
             }
         }
+*/
         Deque<String> stack = new ArrayDeque<>();
         Set<String> visited = new HashSet<>();
         Set<String> visiting = new HashSet<>();
@@ -70,10 +76,8 @@ public class PluginPipeline {
 
     private void execute(Plugin plugin) {
         Logger.debug("Executing plugin " + plugin.id());
-/*
-        Registrar reg = new Registrar(plugin.id(), this.tp);
+        Registrar reg = new Registrar(plugin.id(), this.tp, this.service);
         plugin.apply(reg);
-*/
     }
 
     private void topoSort(Deque<String> stack, Set<String> visiting, Set<String> visited,  List<String> out) {

@@ -32,21 +32,27 @@ public class Nob {
         try {
             if (ctx != null) return;
             ctx = Context.load(this);
+            Service service = new Service();
+            PluginPipeline pp = new PluginPipeline(graph, service);
 
-            PluginPipeline pp = new PluginPipeline(graph);
-            Test first = new Test("first", "second");
-            Test second = new Test("second", "third");
-            Test third = new Test("third");
-            pp.register(first);
-            pp.register(second);
-            pp.register(third);
+            Plugin java = new Java();
+            Plugin base = new Base();
+            Plugin resolve = new Resolve();
+            Plugin compile = new Compile();
+            Plugin pkg = new Pkg();
+
+            pp.register(java);
+            pp.register(base);
+            pp.register(resolve);
+            pp.register(compile);
+            pp.register(pkg);
 
             ctx.deps.add(new Dependency("org.ow2.asm", "asm", "9.10.1"));
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> { 
                 try {
-                    // graph.run("package", ctx);
                     pp.run();
+                    graph.run("package$end", ctx);
                 } catch (NobException e) {
                     handle(e);
                 }
@@ -88,5 +94,68 @@ class Test implements Plugin {
 
     public void apply(Registrar reg) {
         Logger.info("Executing testtask");
+    }
+}
+
+class Base implements Plugin {
+    public String id() {
+        return "base";
+    }
+
+    public void apply(Registrar reg) {
+        reg.createLifecycle("resolve");
+        reg.createLifecycle("compile");
+        reg.createLifecycle("package");
+
+        reg.addAfter("compile", "resolve");
+        reg.addAfter("package", "compile");
+    }
+}
+
+class Java implements Plugin {
+    public String id() {
+        return "java";
+    }
+
+    public List<String> dependsOn() {
+        return List.of("resolve", "comp", "pkg");
+    }
+
+    public void apply(Registrar reg) {}
+}
+
+class Resolve implements Plugin {
+    public String id() {
+        return "resolve";
+    }
+
+    public List<String> dependsOn() {
+        return List.of("base");
+    }
+
+    public void apply(Registrar reg) {
+        Task tsk = new ResolveTask();
+        String sig = reg.registerTask(tsk);
+
+        reg.addTo(sig, "resolve");
+    }
+}
+
+
+
+class Pkg implements Plugin {
+    public String id() {
+        return "pkg";
+    }
+
+    public List<String> dependsOn() {
+        return List.of("base");
+    }
+
+    public void apply(Registrar reg) {
+        Task tsk = new PackageTask();
+        String sig = reg.registerTask(tsk);
+
+        reg.addTo(sig, "package");
     }
 }
