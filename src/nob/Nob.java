@@ -24,7 +24,7 @@ public class Nob {
     public String jarName       = "out.jar";
 
     public Context ctx          = null;
-    public TaskPipeline graph          = new TaskPipeline();
+    public TaskPipeline graph   = new TaskPipeline();
 
     public static boolean debug = false;
 

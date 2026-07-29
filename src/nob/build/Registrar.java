@@ -12,10 +12,12 @@ import nob.Task;
 public class Registrar {
     private final String pluginId;
     private final TaskPipeline graph;
+    private final Service service;
 
-    public Registrar(String pluginId, TaskPipeline graph) {
+    public Registrar(String pluginId, TaskPipeline graph, Service service) {
         this.pluginId = pluginId;
         this.graph = graph;
+        this.service = service;
     }
 
     public void createLifecycle(String lifecycle) {
@@ -23,7 +25,7 @@ public class Registrar {
     }
 
     public String registerTask(Task task) {
-        String signature = createSignature(this.pluginId, task.id());
+        String signature = createSignature(task.id());
         this.graph.registerTask(signature, task);
         return signature;
     }
@@ -36,8 +38,16 @@ public class Registrar {
         this.graph.addAfter(signature, prerequisite);
     }
 
-    public String createSignature(String pluginId, String taskId) {
-        return pluginId + ":" + taskId;
+    public String createSignature(String sigId) {
+        return this.pluginId + ":" + sigId;
+    }
+
+    public void setState(String stateId, Object object) {
+        service.setState(createSignature(stateId), object);
+    }
+
+    public <T> T getState(String sig, Class<T> type) {
+        return service.getState(sig, type);
     }
 }
 
