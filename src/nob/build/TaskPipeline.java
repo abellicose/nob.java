@@ -26,14 +26,16 @@ import nob.Task;
 // downstream — the map recording which inlets each outlet feeds into
 // the stream itself — not a variable, just what run() does when it walks outlet → inlet → outlet → inlet...
 public class TaskPipeline {
-    private static final String INLET_SUFFIX = "$start"; //
-    private static final String OUTLET_SUFFIX = "$end";
-    private Map<String, Task> registry = new HashMap<>();
-    //          Prerequisite->Task: Prerequisite runs first, then Task
-    private Map<String, Set<String>> downstream = new HashMap<>();
-    private Map<String, Integer> degree = new HashMap<>(); // how many outlets flow into this inlet
-    private Set<String> queue = new HashSet<>();
+    //          TaskId       Task
+    private Map<NamespaceId, Task> taskRegistry = new HashMap<>();
+    //          BucketId     Bucket
+    private Map<NamespaceId, Bucket> bucketRegistry = new HashMap<>();
+    //          TaskId       TaskDegree
+    private Map<NamespaceId, Integer> degree = new HashMap<>();
+    // BucketId/ValveId      Tasks that depend on bucket, downstream
+    private Map<NamespaceId, Set<NamespaceId>> downstream = new HashMap<>();
 
+/*
     public void createLifecycle(String lifecycle) {
         String inlet = lifecycle + INLET_SUFFIX;
         String outlet = lifecycle + OUTLET_SUFFIX;
@@ -49,6 +51,35 @@ public class TaskPipeline {
         downstream.put(outlet, new HashSet<>());
         degree.put(outlet, 0);
         Logger.debug("Lifecycle " + lifecycle + " created");
+    }
+*/
+
+    // register task
+    public void registerTask(NamespaceId taskId, Class<? extends Task> taskType) {
+        if (taskRegistry.containsKey(taskId)) {
+            throw new NobException("Task already exists for: " + taskId);
+        }
+
+        Task task;
+        try {
+            task = taskType.getDeclaredConstructor().newInstance();
+        } catch (ReflectiveOperationException e) {
+            throw new NobException("Failed to instantiate task: " + taskType.getName(), e);
+        }
+
+        taskRegistry.put(taskId, task);
+        // create produced buckets, this is the only place buckets are produced
+        for (NamespaceId outlet: task.produces()) {
+            bucketRegistry.putIfAbsent(outlet, new Bucket());
+        }
+        
+        int inletCount = 0;
+        for (NamespaceId inlet: task.consumes()) {
+            downstream.computeIfAbsent(inlet, k -> new HashSet<>()).add(taskId);
+            inletCount++;
+        }
+
+        degree.put(taskId, inletCount);
     }
 
     public void registerTask(String signature, Task task) {

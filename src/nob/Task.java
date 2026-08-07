@@ -21,7 +21,7 @@ public interface Task {
             result.add(new BucketSiganture(signatures[i]));
         }
 
-        return reuslt;
+        return result;
     }
 
     default List<NamespaceId> consumes() {

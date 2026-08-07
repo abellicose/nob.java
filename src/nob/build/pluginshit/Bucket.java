@@ -10,9 +10,6 @@ package nob.build;
 import java.util.List;
 import java.util.ArrayList;
 
-// bucket will take any type
-// hold a list of that type
-// TODO: Make <T> always be a provider Lazy<T>
 public class Bucket<T> {
     List<T> lists = new ArrayList<>();
     
