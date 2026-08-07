@@ -54,6 +54,10 @@ public class ResolveTask implements Task {
         return "resolvetask";
     }
 
+    public List<NamespaceId> produces() {
+        return namespaceIdsFrom("jvm.jars");
+    }
+
     public void execute(Context ctx) {
         if (ctx.deps.isEmpty()) {
             Logger.debug("No dependencies to resolve.");

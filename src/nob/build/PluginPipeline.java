@@ -76,7 +76,7 @@ public class PluginPipeline {
 
     private void execute(Plugin plugin) {
         Logger.debug("Executing plugin " + plugin.id());
-        Registrar reg = new Registrar(plugin.id(), this.tp, this.service);
+        Registrar reg = new Registrar(plugin.id(), plugin.dependsOn(), this.tp, this.service);
         plugin.apply(reg);
     }
 

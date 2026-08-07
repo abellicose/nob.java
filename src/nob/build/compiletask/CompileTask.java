@@ -52,6 +52,14 @@ public class CompileTask implements Task {
         return "compiletask";
     }
 
+    public List<NamespaceId> consumes() {
+        return namespaceIdsFrom("jvm:sources");
+    }
+
+    public List<NamespaceId> produces() {
+        return namespaceIdsFrom("jvm:binaries");
+    }
+
     public List<String> dependsOn() { 
         return List.of("resolve"); 
     }

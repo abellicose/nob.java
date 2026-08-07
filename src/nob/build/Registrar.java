@@ -8,6 +8,7 @@
 package nob.build;
 
 import nob.Task;
+import nob.NobException;
 
 public class Registrar {
     private final String pluginId;
@@ -25,7 +26,7 @@ public class Registrar {
     }
 
     public String registerTask(Task task) {
-        String signature = createSignature(task.id());
+        String signature = formatNamespaceId(task.id());
         this.graph.registerTask(signature, task);
         return signature;
     }
@@ -38,12 +39,12 @@ public class Registrar {
         this.graph.addAfter(signature, prerequisite);
     }
 
-    public String createSignature(String sigId) {
+    public String formatNamespaceId(String sigId) {
         return this.pluginId + ":" + sigId;
     }
 
     public void setState(String stateId, Object object) {
-        service.setState(createSignature(stateId), object);
+        service.setState(formatNamespaceId(stateId), object);
     }
 
     public <T> T getState(String sig, Class<T> type) {

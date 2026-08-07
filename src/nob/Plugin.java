@@ -7,15 +7,16 @@
 
 package nob;
 
-import java.util.List;
+import java.util.Set;
 import nob.build.Registrar;
 
 public interface Plugin {
-    default List<String> dependsOn() {
-        return List.of();
+    default Set<String> dependsOn() {
+        return Set.of();
     }
 
     String id();
+
     void apply(Registrar registrar);
 }
 

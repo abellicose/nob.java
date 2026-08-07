@@ -25,7 +25,6 @@ import nob.Task;
 // outlet — where a node's flow exits
 // downstream — the map recording which inlets each outlet feeds into
 // the stream itself — not a variable, just what run() does when it walks outlet → inlet → outlet → inlet...
-
 public class TaskPipeline {
     private static final String INLET_SUFFIX = "$start"; //
     private static final String OUTLET_SUFFIX = "$end";

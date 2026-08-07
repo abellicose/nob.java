@@ -7,13 +7,15 @@
 
 package nob.build;
 
+import java.util.Set;
+
 class CompilePlugin implements Plugin {
     public String id() {
         return "comp";
     }
 
-    public List<String> dependsOn() {
-        return List.of("base");
+    public Set<String> dependsOn() {
+        return Set.of("base");
     }
 
     public void apply(Registrar reg) {
