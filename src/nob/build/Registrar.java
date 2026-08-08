@@ -15,6 +15,8 @@ public class Registrar {
     private final TaskPipeline graph;
     private final Service service;
 
+    private final Set<String> deps = new HashSet<>();
+
     public Registrar(String pluginId, TaskPipeline graph, Service service) {
         this.pluginId = pluginId;
         this.graph = graph;
@@ -25,9 +27,13 @@ public class Registrar {
         this.graph.createLifecycle(lifecycle);
     }
 
-    public String registerTask(Task task) {
-        String signature = formatNamespaceId(task.id());
-        this.graph.registerTask(signature, task);
+    public String registerTask(Class<? extends Task> taskType) {
+        Task task = taskType.getDeclaredConstructors().newInstance();
+        String taskId = formatNamespaceId(task.id());
+        this.graph.registerTask(taskId, task);
+        for (NamespaceId consumedBucket: task.consumes()) {
+            deps.add(consumedBucket.pluginId());
+        }
         return signature;
     }
 
