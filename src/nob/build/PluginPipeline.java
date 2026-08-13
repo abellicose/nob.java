@@ -40,7 +40,6 @@ public class PluginPipeline {
             downstream.computeIfAbsent(ds, k -> new ArrayList<>()).add(pluginId);
             Logger.debug("registry: " + pluginId + " depends on " + ds);
         }
-
     }
 
     // Runs and instantiates the entire loaded plugin graph

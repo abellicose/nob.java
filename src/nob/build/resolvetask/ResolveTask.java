@@ -54,8 +54,8 @@ public class ResolveTask implements Task {
         return "resolvetask";
     }
 
-    public List<NamespaceId> produces() {
-        return namespaceIdsFrom("jvm.jars");
+    public List<BucketId> produces() {
+        return bucketIdsFrom("jvm:jars");
     }
 
     public void execute(Context ctx) {

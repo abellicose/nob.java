@@ -11,12 +11,7 @@ import java.util.Set;
 import nob.build.Registrar;
 
 public interface Plugin {
-    default Set<String> dependsOn() {
-        return Set.of();
-    }
-
     String id();
-
     void apply(Registrar registrar);
 }
 

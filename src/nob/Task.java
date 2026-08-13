@@ -14,21 +14,21 @@ import java.util.ArrayList;
 public interface Task {
     String id();
 
-    default List<NamespaceId> namespaceIdsFrom(String... signatures) {
-        List<NamespaceId> result = new ArrayList<>();
+    default List<BucketId> bucketIdsFrom(String... signatures) {
+        List<BucketId> result = new ArrayList<>();
 
         for (int i = 0; i < signatures.length; i++) {
-            result.add(new BucketSiganture(signatures[i]));
+            result.add(new BucketId(signatures[i]));
         }
 
         return result;
     }
 
-    default List<NamespaceId> consumes() {
+    default List<BucketId> consumes() {
         return List.of();
     }
 
-    default List<NamespaceId> produces() {
+    default List<BucketId> produces() {
         return List.of();
     }
 

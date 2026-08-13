@@ -12,41 +12,42 @@ import nob.NobException;
 
 public class Registrar {
     private final String pluginId;
-    private final TaskPipeline graph;
+    private final TaskPipeline taskPipeline;
     private final Service service;
 
     private final Set<String> deps = new HashSet<>();
 
-    public Registrar(String pluginId, TaskPipeline graph, Service service) {
+    public Registrar(String pluginId, TaskPipeline taskPipeline, Service service) {
         this.pluginId = pluginId;
-        this.graph = graph;
+        this.taskPipeline = taskPipeline;
         this.service = service;
-    }
-
-    public void createLifecycle(String lifecycle) {
-        this.graph.createLifecycle(lifecycle);
     }
 
     public String registerTask(Class<? extends Task> taskType) {
         Task task = taskType.getDeclaredConstructors().newInstance();
-        String taskId = formatNamespaceId(task.id());
-        this.graph.registerTask(taskId, task);
-        for (NamespaceId consumedBucket: task.consumes()) {
+        this.taskPipeline.registerTask(new TaskId(formatNamespaceId(task.id())), task);
+        for (BucketId consumedBucket: task.consumes()) {
             deps.add(consumedBucket.pluginId());
         }
         return signature;
     }
 
+    public String formatNamespaceId(String sigId) {
+        return this.pluginId + ":" + sigId;
+    }
+
+    // POST REFACTOR
+
     public void addTo(String signature, String prerequisite) {
-        this.graph.addTo(signature, prerequisite);
+        this.taskPipeline.addTo(signature, prerequisite);
     }
 
     public void addAfter(String signature, String prerequisite) {
-        this.graph.addAfter(signature, prerequisite);
+        this.taskPipeline.addAfter(signature, prerequisite);
     }
 
-    public String formatNamespaceId(String sigId) {
-        return this.pluginId + ":" + sigId;
+    public void createLifecycle(String lifecycle) {
+        this.taskPipeline.createLifecycle(lifecycle);
     }
 
     public void setState(String stateId, Object object) {

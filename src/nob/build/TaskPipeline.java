@@ -26,124 +26,171 @@ import nob.Task;
 // downstream — the map recording which inlets each outlet feeds into
 // the stream itself — not a variable, just what run() does when it walks outlet → inlet → outlet → inlet...
 public class TaskPipeline {
-    //          TaskId       Task
-    private Map<NamespaceId, Task> taskRegistry = new HashMap<>();
-    //          BucketId     Bucket
-    private Map<NamespaceId, Bucket> bucketRegistry = new HashMap<>();
-    //          BucketId         Tasks that consumed it
-    private Map<NamespaceId, Set<NamespaceId>> producerOf = new HashMap<>();
+    private Map<TaskId, Task> taskRegistry = new HashMap<>();
+    private Map<BucketId, Bucket> bucketRegistry = new HashMap<>();
+    private Map<BucketId, Set<TaskId>> producerOf = new HashMap<>();
+    private Map<BucketId, Set<TaskId>> consumerOf = new HashMap<>();
+    private boolean chainVerified = false;
 
     // TODO: Currently exists: Pipeline derives dependency from what task consumes() and produces()
     //       Allow tasks to be added before or after tasks
     //       Allow lifecycles
 
     // register task
-    public void registerTask(NamespaceId taskId, Task task) {
+    public void registerTask(TaskId taskId, Task task) {
         // this should never happen
         // two plugins with the same name shouldn't exist in the first place.
-        // if (taskRegistry.containsKey(taskId)) {
-        //    throw new NobException("Task already exists for: " + taskId);
-        // }
+        // here only to prevent registering same task twice until we figure out how to do that
+        if (taskRegistry.containsKey(taskId)) {
+           throw new NobException("Task already exists for: " + taskId);
+        }
         taskRegistry.put(taskId, task);
-        for (NamespaceId producedBucket: task.produces()) {
-            bucketRegistry.putIfAbsent(producedBucket, new Bucket());
+        for (BucketId producedBucket: task.produces()) {
+            if (producedBucket.pluginId.equals(taskId.pluginId)) {
+                bucketRegistry.putIfAbsent(producedBucket, new Bucket());
+            }
             producerOf.computeIfAbsent(producedBucket, k -> new HashSet<>()).add(taskId);
         }
+
+        for (BucketId consumedBucket: task.consumes()) {
+            consumerOf.computeIfAbsent(consumedBucket, k -> new HashSet<>()).add(taskId);
+        }
+
+        chainVerified = false;
     }
 
-    public boolean verifyChain(NamespaceId taskId) {
-        Task task = taskRegistry.get(taskId);
-        if (task == null) {
-            throw new NobException("[verifyChain] Task " + taskId + " was not registered.");
-        }
-        
-        Deque<Task> stack = new ArrayDeque<>();
-        stack.push(task);
-        while(!stack.isEmpty()) {
-            Task task = stack.pop();
-            for (NamespaceId consumedBucket: task.consumes()) {
-                
-            }
-        }
-    }
-
-    public void run(NamespaceId taskId, Context ctx) {
-        NamespaceId targetOutlet = taskId; // outlet, needs to end here. the task that needs to end
-        if (!taskRegistry.containsKey(targetOutlet)) {
-            throw new NobException("Task " + taskId + " is not registered! Cannot execute.");
-        }
-
-        Set<NamespaceId> valves = new HashSet<>();
-        Set<NamespaceId> zeroDegreeValves = new HashSet<>();
-        Map<NamespaceId, Integer> tmpDegree = new HashMap<>();
-
-        Deque<NamespaceId> stack = new ArrayDeque<>();
-        stack.add(targetOutlet);
-
-        while(!stack.isEmpty()) {
-            NamespaceId inlet = stack.pop();
-            if (!valves.add(inlet)) continue; 
-
-            int inletDegree = degree.get(inlet);
-            tmpDegree.put(inlet, inletDegree);
-            if (inletDegree == 0) {
-                zeroDegreeValves.add(inlet);
-                continue;
-            }
-
-            for (NamespaceId outlet: upstream.get(inlet)) {
-                stack.push(outlet);
-            }
-        }
-
-        stack.clear();
-        stack.add(targetOutlet);
-
-        Set<NamespaceId> visiting = new HashSet<>();
-        Set<NamespaceId> visited = new HashSet<>();
-        while(!stack.isEmpty()) {
-            NamespaceId outlet = stack.pop();
-            Set<NamespaceId> inlets = downstream.get(outlet);
-            int inletCount = 0;
-
-            visiting.add(outlet);
-            for (NamespaceId inlet: inlets) {
-                if (visited.contains(inlet)) continue;
-                stack.push(inlet);
-                inletCount++;
-                if (visiting.contains(inlet)) {
-                    // report the circular dep here
-                    throw new NobException("Circular dependency spotted between tasks.");
+    public void verifyChain() {
+        for (Task task: taskRegistry.values()) {
+            for (BucketId consumedBucket: task.consumes()) {
+                if (!producerOf.containsKey(consumedBucket)) {
+                    throw new NobException("No producer found for " + consumedBucket);
                 }
             }
-
-            visiting.remove(outlet);
-            visited.add(outlet);
         }
 
-        stack.clear();
-        stack.addAll(zeroDegreeValves);
+        Set<TaskId> visiting = new HashSet<>();
+        Set<TaskId> visited = new HashSet<>();
+        Deque<TaskId> stack = new ArrayDeque<>();
+        Deque<TaskId> callStack = new ArrayDeque<>();
+
+        for (TaskId currentTaskId: taskRegistry.keySet()) {
+            if (!visited.contains(entry.getKey())) {
+                stack.push(currentTaskId);
+            }
+
+            while (!stack.isEmpty()) {
+                TaskId taskId = stack.peek();
+
+                if (taskId.equals(callStack.peek())) {
+                    stack.poll();
+                    callStack.poll();
+                    visiting.remove(taskId);
+                    visited.add(taskId);
+                    continue;
+                }
+
+                if (degree.get(taskId) == 0) {
+                    stack.poll();
+                    visited.add(taskId);
+                    continue;
+                }
+                callStack.push(taskId);
+                visiting.add(taskId);
+
+                for (BucketId consumedBucket: taskRegistry.get(taskId).consumes()) {
+                    for (TaskId producer: producerOf.get(consumedBucket)) {
+                        if (visiting.contains(producer)) {
+                            throw new NobException("Circular dependency detected: " + describeCycle(callStack, producer));
+                        }
+                        if (visited.contains(producer)) continue;
+                        stack.push(producer);
+                    }
+                }
+            }
+        }
+        chainVerified = true;
+    }
+
+    public void run(TaskId currentTaskId, Context ctx) {
+        if (!chainVerified) {
+            throw new NobException("Method TaskPipeline:verifyChain needs to be called before any task is executed.");
+        }
+
+        if (!taskRegistry.containsKey(currentTaskId)) {
+            throw new NobException("Task " + currentTaskId + " is not registered! Cannot execute.");
+        }
+
+        Set<TaskId> zeroDegreeTasks = new HashSet<>();
+        Map<TaskId, Integer> tempDegree = new HashMap<>();
+
+        Set<TaskId> visited = new HashSet<>();
+        Deque<TaskId> stack = new ArrayDeque<>();
+        stack.push(currentTaskId);
+
+        // on a DAG
         while (!stack.isEmpty()) {
-            NamespaceId outlet = stack.pop();
-            executeTask(taskRegistry.get(outlet), ctx);
+            TaskId taskId = stack.poll();
 
-            for (NamespaceId inlet: downstream.get(outlet)) {
-                if (!valves.contains(inlet)) continue;
+            int taskDegree = degree.get(taskId);
+            tempDegree.put(taskId, taskDegree);
+            if (taskDegree == 0) {
+                zeroDegreeTasks.add(taskId);
+            }
 
-                int newDegree = tmpDegree.get(inlet) - 1;
-                tmpDegree.put(inlet, newDegree);
+            for (BucketId consumedBucket: taskRegistry.get(taskId).consumes()) {
+                for (TaskId producerTask: producerOf.get(consumedBucket)) {
+                    if (visited.contains(producerTask)) continue;
 
-                if (newDegree == 0) {
-                    stack.push(inlet);
+                    visited.add(taskId);
+                    stack.push(producerTask);
+                }
+            }
+        }
+
+        if (zeroDegreeTasks.isEmpty()) {
+            throw new NobException("No tasks with degree=0 found. Somethings wrong.");
+        }
+
+        // stack should be cleared by now
+        stack.addAll(zeroDegreeTasks);
+
+        while(!stack.isEmpty()) {
+            TaskId taskId = stack.pop();
+            Task task = taskRegistry.get(taskId);
+            executeTask(task);
+
+            for (BucketId producedBucket: task.produces()) {
+                for (TaskId consumerTask: consumerOf.getOrDefault(producedBucket, Set.of())) {
+                    if (!visited.contains(consumerTask)) continue;
+
+                    int newDegree = tempDegree.get(consumerTask) - 1;
+                    tempDegree.put(consumerTask, newDegree);
+
+                    if (newDegree == 0) {
+                        stack.push(consumerTask);
+                    }
                 }
             }
         }
     }
 
-
-    public void executeTask(Task task, Context ctx) {
-        // placeholder
+    private void executeTask(Task task, Context ctx) {
         task.execute(ctx);
+    }
+
+    private String describeCycle(Deque<TaskId> callStack, TaskId ancestor) {
+        List<TaskId> path = new ArrayList<>();
+        for (TaskId node : callStack) {
+            path.add(node);
+            if (node.equals(ancestor)) {
+                break;
+            }
+        }
+        Collections.reverse(path);
+        path.add(ancestor);
+        return path.stream()
+        .map(TaskId::toString)
+        .collect(Collectors.joining(" -> "));
     }
 }
 

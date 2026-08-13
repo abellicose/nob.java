@@ -9,30 +9,42 @@ package nob.build;
 
 import nob.NobException;
 
-public record NamespaceId(String id, String pluginId, String name) {
-    public static NamespaceId parse(String id) {
+public class NamespaceId {
+    public final String id;
+    public final String pluginId;
+    public final String name;
+
+    private NamespaceId(String id, String pluginId, String name) {
+        this.id = id;
+        this.pluginId = pluginId;
+        this.name = name;
+    }
+
+    public NamespaceId(String id) {
         String[] arr = id.split(":");
         if (arr.length != 2 || arr[0].isEmpty() || arr[1].isEmpty()) {
             throw new NobException("Couldn't split [" + id + "] cleanly.");
         }
 
-        return new NamespaceId(id, arr[0], arr[1]);
-    }
-
-    public String get() {
-        return this.id;
+        this(id, arr[0], arr[1]);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof NamespaceId other)) return false;
-        return id.equals(other.id);
+        if (o == null || getClass() != o.getClass()) return false;
+        NamespaceId other = (NamespaceId) o;
+        return this.id.equals(other.id);
     }
 
     @Override
     public int hashCode() {
-        return id.hashCode();
+        return this.id.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "NamespaceId[id=" + this.id + "]";
     }
 }
 
