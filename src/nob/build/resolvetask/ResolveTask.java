@@ -35,6 +35,7 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.lang.Runtime;
+import java.lang.reflect.Type;
 import nob.NobException;
 import nob.Task;
 import nob.build.dependencyresolver.Dependency;
@@ -54,9 +55,17 @@ public class ResolveTask implements Task {
         return "resolvetask";
     }
 
-    public List<BucketId> produces() {
-        return bucketIdsFrom("jvm:jars");
+/*
+    public Map<String, Type> produces() {
+        return Map.of("uniqueBucket", String.class);
     }
+
+    public List<BucketId> populates() {
+        return buckets("jvm:jars");
+    }
+*/
+
+    public void execute(ExecutionContext ctx) {}
 
     public void execute(Context ctx) {
         if (ctx.deps.isEmpty()) {

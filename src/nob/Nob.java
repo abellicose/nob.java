@@ -12,9 +12,12 @@ import nob.build.*;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.function.Consumer;
+import java.lang.reflect.Type;
 
 public class Nob {
     public String sourceDir     = "src/";
@@ -34,24 +37,25 @@ public class Nob {
         try {
             if (ctx != null) return;
             ctx = Context.load(this);
-            Service service = new Service();
-            PluginPipeline pp = new PluginPipeline(graph, service);
 
-            pp.register(new ResolvePlugin());
-            pp.register(new CompilePlugin());
+            Engine engine = new Engine();
+            engine.registerPlugin(new PluginRunsFirst());
+            engine.registerPlugin(new PluginRunsSecond());
 
-            ctx.deps.add(new Dependency("org.ow2.asm", "asm", "9.10.1"));
-            ctx.deps.add(new Dependency("org.junit.jupiter", "junit-jupiter", "5.10.2"));
+            engine.commit();
+            engine.show();
+/*
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> { 
+                System.out.println("HI");
                 try {
-                    pp.run();
-                    graph.run("compiletask", ctx);
+                    taskPipeline.run(new TaskId("second:task2"), new ExecutionContext());
                 } catch (NobException e) {
                     handle(e);
                 }
                 Logger.stop();
             }));
+*/
         } catch (NobException e) {
             handle(e);
             System.exit(1);
@@ -59,7 +63,64 @@ public class Nob {
     }
 
     private void handle(NobException e) {
-        Logger.error(e.getMessage());
+        System.out.println(e.getMessage());
         if (e.getCause() != null) e.getCause().printStackTrace();
+    }
+}
+
+class PluginRunsFirst implements Plugin {
+    public String id() {
+        return "first";
+    }
+
+    public void apply(Registry registry) {
+        registry.registerTask(FirstTask.class);
+        registry.registerBucket("testing", Integer.class);
+    }
+
+    public static class FirstTask implements Task {
+        public String id() {
+            return "task1";
+        }
+
+        public Map<String, Type> writes() {
+            return Map.of(
+                "testValue", Types.listOf(String.class)
+            );
+        }
+
+        public void execute(ExecutionContext ctx) {
+            Logger.info("From first");
+        }
+    }
+}
+
+class PluginRunsSecond implements Plugin {
+    public String id() {
+        return "second";
+    }
+
+    public void apply(Registry registry) {
+        registry.registerTask(SecondTask.class);
+    }
+
+    public static class SecondTask implements Task {
+        public String id() {
+            return "task2";
+        }
+
+        public Map<String, Type> writes() {
+            return Map.of(
+                "circ", String.class
+            );
+        }
+
+        public List<String> reads() {
+            return List.of("first:testValue", "first:testing");
+        }
+
+        public void execute(ExecutionContext ctx) {
+            Logger.info("From second");
+        }
     }
 }

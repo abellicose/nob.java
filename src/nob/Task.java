@@ -10,30 +10,24 @@ package nob;
 import nob.build.*;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.lang.reflect.Type;
 
 public interface Task {
     String id();
 
-    default List<BucketId> bucketIdsFrom(String... signatures) {
-        List<BucketId> result = new ArrayList<>();
-
-        for (int i = 0; i < signatures.length; i++) {
-            result.add(new BucketId(signatures[i]));
-        }
-
-        return result;
+    default Map<String, Type> writes() {
+        return Map.of();
     }
 
-    default List<BucketId> consumes() {
+    default List<String> reads() {
         return List.of();
     }
 
-    default List<BucketId> produces() {
+    default List<String> consumesConfig() {
         return List.of();
     }
 
-    // TODO: change to execute before and execute after
-    default List<String> dependsOn() { return List.of(); }
-    void execute(Context ctx);
+    void execute(ExecutionContext ctx);
 }
 

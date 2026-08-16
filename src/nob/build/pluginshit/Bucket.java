@@ -9,20 +9,42 @@ package nob.build;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.lang.reflect.Type;
+import nob.NobException;
 
 public class Bucket<T> {
-    List<T> lists = new ArrayList<>();
+    private final Type type;
+    private final List<T> values = new ArrayList<>();
+
+    public Bucket(Type type) {
+        this.type = type;
+    }
     
-    public void feed(T t) {
-        lists.add(t);
+    public void set(T value) {
+        values.clear();
+        values.add(value);
     }
 
-    public List<T> get() {
-        List<T> combined = new ArrayList<>();
-        for (T list: lists) {
-            combined.addAll(list);
+    public void add(T value) {
+        values.add(value);
+    }
+
+    public T get() {
+        if (values.size() != 1) {
+            throw new NobException("Bucket expected exactly one value, has " + values.size());
         }
-        return combined;
+        return values.get(0);
+    }
+
+    public List<T> getAll() {
+        return List.copyOf(values);
+    }
+    @Override
+    public String toString() {
+        return "Bucket[" +
+        "type=" + type.getTypeName() +
+        ", values=" + values +
+        "]";
     }
 }
 

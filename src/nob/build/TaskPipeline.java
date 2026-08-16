@@ -17,53 +17,56 @@ import java.util.Collections;
 import java.util.Stack;
 import java.util.Deque;
 import java.util.ArrayDeque;
+import java.util.stream.Collectors;
+import java.lang.reflect.Type;
+import java.lang.reflect.Type;
 import nob.NobException;
 import nob.Task;
 
-// Im autistic and its hard to hold it in my head without using metaphors
-// inlet — where a node's flow enters
-// outlet — where a node's flow exits
-// downstream — the map recording which inlets each outlet feeds into
-// the stream itself — not a variable, just what run() does when it walks outlet → inlet → outlet → inlet...
 public class TaskPipeline {
-    private Map<TaskId, Task> taskRegistry = new HashMap<>();
-    private Map<BucketId, Bucket> bucketRegistry = new HashMap<>();
+    private Map<TaskId, Task>        taskRegistry = new HashMap<>();
+    private Map<TaskId, Integer>           degree = new HashMap<>();
+    private Map<BucketId, Bucket>  bucketRegistry = new HashMap<>();
     private Map<BucketId, Set<TaskId>> producerOf = new HashMap<>();
     private Map<BucketId, Set<TaskId>> consumerOf = new HashMap<>();
+
+/*
     private boolean chainVerified = false;
 
-    // TODO: Currently exists: Pipeline derives dependency from what task consumes() and produces()
-    //       Allow tasks to be added before or after tasks
-    //       Allow lifecycles
+    public void createBucket(BucketId bucketId, Type type) {
+        bucketRegistry.putIfAbsent(bucketId, new Bucket<>(type));
+    }
 
-    // register task
     public void registerTask(TaskId taskId, Task task) {
-        // this should never happen
-        // two plugins with the same name shouldn't exist in the first place.
-        // here only to prevent registering same task twice until we figure out how to do that
         if (taskRegistry.containsKey(taskId)) {
            throw new NobException("Task already exists for: " + taskId);
         }
-        taskRegistry.put(taskId, task);
-        for (BucketId producedBucket: task.produces()) {
-            if (producedBucket.pluginId.equals(taskId.pluginId)) {
-                bucketRegistry.putIfAbsent(producedBucket, new Bucket());
-            }
-            producerOf.computeIfAbsent(producedBucket, k -> new HashSet<>()).add(taskId);
-        }
 
-        for (BucketId consumedBucket: task.consumes()) {
-            consumerOf.computeIfAbsent(consumedBucket, k -> new HashSet<>()).add(taskId);
-        }
+        taskRegistry.put(taskId, task);
 
         chainVerified = false;
     }
 
     public void verifyChain() {
-        for (Task task: taskRegistry.values()) {
+        if (chainVerified) return;
+        Logger.debug("In verifyChain");
+
+        for (Map.Entry<TaskId, Task> entry: taskRegistry.entrySet()) {
+            TaskId taskId = entry.getKey();
+            Task task = entry.getValue();
+            int deg = 0;
             for (BucketId consumedBucket: task.consumes()) {
                 if (!producerOf.containsKey(consumedBucket)) {
                     throw new NobException("No producer found for " + consumedBucket);
+                }
+                deg += producerOf.get(consumedBucket).size();
+            }
+
+            degree.put(taskId, deg);
+
+            for (BucketId populatedBucket: task.populates()) {
+                if (!producerOf.containsKey(populatedBucket)) {
+                    throw new NobException("No producer found for populated bucket " + populatedBucket);
                 }
             }
         }
@@ -74,7 +77,7 @@ public class TaskPipeline {
         Deque<TaskId> callStack = new ArrayDeque<>();
 
         for (TaskId currentTaskId: taskRegistry.keySet()) {
-            if (!visited.contains(entry.getKey())) {
+            if (!visited.contains(currentTaskId)) {
                 stack.push(currentTaskId);
             }
 
@@ -111,7 +114,7 @@ public class TaskPipeline {
         chainVerified = true;
     }
 
-    public void run(TaskId currentTaskId, Context ctx) {
+    public void run(TaskId currentTaskId, ExecutionContext ctx) {
         if (!chainVerified) {
             throw new NobException("Method TaskPipeline:verifyChain needs to be called before any task is executed.");
         }
@@ -141,7 +144,7 @@ public class TaskPipeline {
                 for (TaskId producerTask: producerOf.get(consumedBucket)) {
                     if (visited.contains(producerTask)) continue;
 
-                    visited.add(taskId);
+                    visited.add(producerTask);
                     stack.push(producerTask);
                 }
             }
@@ -157,7 +160,7 @@ public class TaskPipeline {
         while(!stack.isEmpty()) {
             TaskId taskId = stack.pop();
             Task task = taskRegistry.get(taskId);
-            executeTask(task);
+            executeTask(task, ctx);
 
             for (BucketId producedBucket: task.produces()) {
                 for (TaskId consumerTask: consumerOf.getOrDefault(producedBucket, Set.of())) {
@@ -174,7 +177,7 @@ public class TaskPipeline {
         }
     }
 
-    private void executeTask(Task task, Context ctx) {
+    private void executeTask(Task task, ExecutionContext ctx) {
         task.execute(ctx);
     }
 
@@ -192,26 +195,6 @@ public class TaskPipeline {
         .map(TaskId::toString)
         .collect(Collectors.joining(" -> "));
     }
+*/
 }
 
-class Lifecycle implements Task {
-    private String id;
-
-    Lifecycle(String id) {
-        this.id = id;
-    }
-
-    public String id() {
-        return this.id;
-    }
-
-    public void execute(Context ctx) {
-        if (this.id.endsWith("$start")) {
-            Logger.info("============================================");
-        }
-        Logger.info("Group task: " + this.id);
-        if (this.id.endsWith("$end")) {
-            Logger.info("============================================");
-        }
-    }
-}

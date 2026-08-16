@@ -8,10 +8,10 @@
 package nob;
 
 import java.util.Set;
-import nob.build.Registrar;
+import nob.build.Registry;
 
 public interface Plugin {
     String id();
-    void apply(Registrar registrar);
+    void apply(Registry registry);
 }
 

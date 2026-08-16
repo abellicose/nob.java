@@ -9,62 +9,69 @@ package nob.build;
 
 import nob.Task;
 import nob.NobException;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.List;
+import java.util.ArrayList;
+import java.lang.reflect.Type;
 
 public class Registrar {
-    private final String pluginId;
-    private final TaskPipeline taskPipeline;
-    private final Service service;
+    private final PluginId pluginId;
+    private final TaskPipeline pipeline;
+    private final Set<PluginId> dependencies = new HashSet<>();
+    private final Set<PluginId> deps = new HashSet<>();
 
-    private final Set<String> deps = new HashSet<>();
-
-    public Registrar(String pluginId, TaskPipeline taskPipeline, Service service) {
+    public Registrar(PluginId pluginId, TaskPipeline pipeline) {
         this.pluginId = pluginId;
-        this.taskPipeline = taskPipeline;
-        this.service = service;
+        this.pipeline = pipeline;
     }
 
-    public String registerTask(Class<? extends Task> taskType) {
-        Task task = taskType.getDeclaredConstructors().newInstance();
-        this.taskPipeline.registerTask(new TaskId(formatNamespaceId(task.id())), task);
-        for (BucketId consumedBucket: task.consumes()) {
-            deps.add(consumedBucket.pluginId());
+    public void registerTask(Class<? extends Task> taskType) {
+/*
+        Task task;
+        try {
+            task = taskType.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new NobException("Could not create task instance from task class type.", e);
         }
-        return signature;
+        TaskId taskId = new TaskId(rawNamespaceIdFrom(task.id()));
+
+        for (Map.Entry<String, Type> entry: task.produces().entrySet()) {
+            pipeline.createBucket(new BucketId(rawNamespaceIdFrom(entry.getKey())), entry.getValue());
+        }
+
+        pipeline.registerTask(taskId, task);
+
+        for (BucketId populatedBucket: task.populates()) {
+            dependencies.add(populatedBucket.pluginId);
+        }
+
+        for (BucketId consumedBucket: task.consumes()) {
+            dependencies.add(consumedBucket.pluginId);
+        }
+
+        for (ConfigId consumedConfig: task.consumesConfig()) {
+            dependencies.add(consumedConfig.pluginId);
+        }
+*/
     }
 
-    public String formatNamespaceId(String sigId) {
-        return this.pluginId + ":" + sigId;
+    public void createBucket(String bucketName, Type type) {
+/*
+        pipeline.createBucket(new BucketId(rawNamespaceIdFrom(bucketName)), type);
+*/
     }
 
-    // POST REFACTOR
+    // create config. config deferred for now
 
-    public void addTo(String signature, String prerequisite) {
-        this.taskPipeline.addTo(signature, prerequisite);
+    private String rawNamespaceIdFrom(String name) {
+        return this.pluginId.rawId + ":" + name;
     }
 
-    public void addAfter(String signature, String prerequisite) {
-        this.taskPipeline.addAfter(signature, prerequisite);
-    }
-
-    public void createLifecycle(String lifecycle) {
-        this.taskPipeline.createLifecycle(lifecycle);
-    }
-
-    public void setState(String stateId, Object object) {
-        service.setState(formatNamespaceId(stateId), object);
-    }
-
-    public <T> T getState(String sig, Class<T> type) {
-        return service.getState(sig, type);
-    }
-
-    // TODO: Check if config being set for exists in the plugins dependencies or not.
-    public void setConfig(String configSignature, Object object) {
-        service.setConfig(configSignature, object);
-    }
-
-    public <T> T getConfig(String configSignature, Class<T> type) {
-        return service.getConfig(configSignature, type);
+    protected Set<PluginId> getDependencies() {
+        return this.deps;
     }
 }
 

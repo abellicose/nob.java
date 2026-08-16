@@ -52,17 +52,7 @@ public class CompileTask implements Task {
         return "compiletask";
     }
 
-    public List<BucketId> consumes() {
-        return bucketIdsFrom("jvm:sources");
-    }
-
-    public List<BucketId> produces() {
-        return bucketIdsFrom("jvm:binaries");
-    }
-
-    public List<String> dependsOn() { 
-        return List.of("resolve"); 
-    }
+    public void execute(ExecutionContext ctx) {}
 
     // TODO: Test if a stale dependency in ctx.out crashes this
     // A.class (already built) depends on B.class

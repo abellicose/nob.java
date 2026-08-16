@@ -20,9 +20,13 @@ public class PackageTask implements Task{
         return "packagetask";
     }
 
-    public List<String> dependsOn() {
-        return List.of("compiletask");
+/*
+    public List<BucketId> consumes() {
+        return buckets("jvm:jars", "jvm:binaries");
     }
+*/
+
+    public void execute(ExecutionContext ctx) {}
 
     public void execute(Context ctx) {
         Path manifestFile = createManifest(ctx);

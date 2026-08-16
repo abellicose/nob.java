@@ -17,7 +17,7 @@ public class ResolveDeps implements Plugin {
         return ID;
     }
 
-    public void apply(Registrar registrar) {
+    public void apply(Registry registrar) {
     }
 
 }
