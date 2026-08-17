@@ -218,6 +218,84 @@ public class Engine {
         }
     }
 
+    public void run(String rawTaskId) {
+        if (rawTaskId == null || rawTaskId.isEmpty() || !Signatures.isForeign(rawTaskId)) {
+            throw new NobException(
+                "Cannot run task: provided taskID must not be null/empty/a proper foreign id");
+        }
+
+        System.out.println("ere");
+
+        TaskId currentTaskId = new TaskId(rawTaskId);
+        TaskInfo curentTaskInfo = taskRegistry.get(currentTaskId);
+
+        if (curentTaskInfo == null) {
+            throw new NobException(
+                "Cannot run task '" + rawTaskId + "': task wasn't registered.");
+        }
+
+        Set<TaskId> zeroDegreeTask = new HashSet<>();
+        Map<TaskId, Integer> degree = new HashMap<>();
+
+        Set<TaskId> visiting = new HashSet<>();
+        Set<TaskId> visited = new HashSet<>();
+        Deque<TaskId> stack = new ArrayDeque<>();
+        stack.push(currentTaskId);
+        System.out.println("ere2");
+
+        while (!stack.isEmpty()) {
+            TaskId taskId = stack.poll();
+            TaskInfo taskInfo = taskRegistry.get(taskId);
+
+            int taskDegree = 0;
+
+            for (BucketId read: taskInfo.reads()) {
+                for (TaskId writer: bucketRegistry.get(read).writers()) {
+                    taskDegree++;
+                    if (visited.contains(writer)) continue;
+                    visited.add(writer);
+                    stack.push(writer);
+                }
+            }
+
+            degree.put(taskId, taskDegree);
+            if (taskDegree == 0) {
+                zeroDegreeTask.add(taskId);
+            }
+        }
+        System.out.println("ere3");
+
+        if (zeroDegreeTask.isEmpty()) {
+            throw new NobException("No tasks with degree=0 found. Somethings wrong.");
+        }
+        // stack should be cleared by now
+        stack.addAll(zeroDegreeTask);
+
+        System.out.println("ere4");
+        System.out.println(stack);
+
+        while (!stack.isEmpty()) {
+            TaskId taskId = stack.pop();
+            TaskInfo taskInfo = taskRegistry.get(taskId);
+            execute(taskId, taskInfo);
+
+            for (BucketId writtenBucket: taskInfo.writes()) {
+                for (TaskId reader: bucketRegistry.get(writtenBucket).readers()) {
+                    int tempDegree = degree.get(reader) - 1;
+                    degree.put(reader, tempDegree);
+                    if (tempDegree == 0) {
+                        stack.push(reader);
+                    }
+                }
+            }
+        }
+    }
+
+    private void execute(TaskId taskId, TaskInfo taskInfo) {
+        ExecutionContext ctx = new ExecutionContext(taskId.pluginId, bucketRegistry);
+        taskInfo.task().execute(ctx);
+    }
+
     private String describeCycle(Deque<TaskId> callStack, TaskId ancestor) {
         List<TaskId> path = new ArrayList<>();
         for (TaskId node : callStack) {
@@ -233,7 +311,7 @@ public class Engine {
         .collect(Collectors.joining(" -> "));
     }
 
-    public Task instantiate(Class<? extends Task> taskType) {
+    private Task instantiate(Class<? extends Task> taskType) {
         try {
             Task task = taskType.getDeclaredConstructor().newInstance();
             return task;

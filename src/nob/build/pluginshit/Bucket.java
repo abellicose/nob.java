@@ -39,12 +39,14 @@ public class Bucket<T> {
     public List<T> getAll() {
         return List.copyOf(values);
     }
+
+    public Type getType() {
+        return this.type;
+    }
+
     @Override
     public String toString() {
-        return "Bucket[" +
-        "type=" + type.getTypeName() +
-        ", values=" + values +
-        "]";
+        return "Bucket[" + "type=" + type.getTypeName() + ", values=" + values + "]";
     }
 }
 

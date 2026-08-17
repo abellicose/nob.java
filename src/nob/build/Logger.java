@@ -15,7 +15,8 @@ import java.util.concurrent.TimeoutException;
 import java.lang.IllegalStateException;
 import java.lang.InterruptedException;
 
-public class Logger {
+public final class Logger {
+    private Logger() {}
     // TODO: TEMP CONSTRUCTOR, REMOVE THIS AFTER REMOVING SHUTDOWNHOOK
     private static final ExecutorService pool = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r);
@@ -76,6 +77,7 @@ public class Logger {
     }
 
     public static void stop() {
+        System.out.println("Stopping logger pool");
         try {
             pool.shutdown();
             if (!pool.awaitTermination(10, TimeUnit.SECONDS)) {

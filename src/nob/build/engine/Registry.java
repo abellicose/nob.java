@@ -19,15 +19,36 @@ public class Registry {
     private final Map<String, Type> buckets = new HashMap<>();
 
     public void registerTask(Class<? extends Task> taskType) {
+        if (taskType == null) {
+            throw new NobException(
+                "Cannot register task: taskType must not be null.");
+        }
+        if (tasks.contains(taskType)) {
+            throw new NobException(
+                "Cannot register task '" + taskType.getName() + "': this task type is already registered.");
+        }
         tasks.add(taskType);
     }
 
     public void registerBucket(String bucketName, Type bucketType) {
         if (bucketName == null || bucketName.isEmpty()) {
-            throw new NobException("BucketName is empty, cannot register it.");
+            throw new NobException(
+                "Cannot register bucket: bucketName must not be null or empty.");
         }
-        if (bucketName == null) {
-            throw new NobException("BucketType cant be null");
+
+        if (bucketType == null) {
+            throw new NobException(
+                "Cannot register bucket '" + bucketName + "': bucketType must not be null.");
+        }
+
+        if (Signatures.isForeign(bucketName)) {
+            throw new NobException("Bucket " + bucketName + " to register cannot be prefixed with an id.");
+        }
+
+        if (buckets.containsKey(bucketName)) {
+            throw new NobException(
+                "Cannot register bucket '" + bucketName + "': a bucket with this name is already registered " +
+                "(existing type: " + buckets.get(bucketName) + ", requested type: " + bucketType + ").");
         }
 
         buckets.put(bucketName, bucketType);

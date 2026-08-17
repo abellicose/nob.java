@@ -43,19 +43,19 @@ public class Nob {
             engine.registerPlugin(new PluginRunsSecond());
 
             engine.commit();
-            engine.show();
-/*
+            engine.run("second:task2");
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> { 
+/*
                 System.out.println("HI");
                 try {
                     taskPipeline.run(new TaskId("second:task2"), new ExecutionContext());
                 } catch (NobException e) {
                     handle(e);
                 }
+*/
                 Logger.stop();
             }));
-*/
         } catch (NobException e) {
             handle(e);
             System.exit(1);
@@ -75,7 +75,6 @@ class PluginRunsFirst implements Plugin {
 
     public void apply(Registry registry) {
         registry.registerTask(FirstTask.class);
-        registry.registerBucket("testing", Integer.class);
     }
 
     public static class FirstTask implements Task {
@@ -85,12 +84,14 @@ class PluginRunsFirst implements Plugin {
 
         public Map<String, Type> writes() {
             return Map.of(
-                "testValue", Types.listOf(String.class)
+                "testValue", String.class
             );
         }
 
         public void execute(ExecutionContext ctx) {
             Logger.info("From first");
+            ctx.addToBucket("testValue", "TESTVALUE");
+            Logger.info("ADDED");
         }
     }
 }
@@ -109,18 +110,14 @@ class PluginRunsSecond implements Plugin {
             return "task2";
         }
 
-        public Map<String, Type> writes() {
-            return Map.of(
-                "circ", String.class
-            );
-        }
-
         public List<String> reads() {
-            return List.of("first:testValue", "first:testing");
+            return List.of("first:testValue");
         }
 
         public void execute(ExecutionContext ctx) {
             Logger.info("From second");
+            Bucket<String> bucket = ctx.getBucket("first:testValue", String.class);
+            Logger.info("Message from plugin 1: " + bucket.get());
         }
     }
 }
