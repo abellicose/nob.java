@@ -15,8 +15,23 @@ import java.util.HashSet;
 import java.lang.reflect.Type;
 
 public class Registry {
-    private final Set<Class<? extends Task>> tasks = new HashSet<>();
-    private final Map<String, Type> buckets = new HashMap<>();
+    public final Set<Class<? extends Task>> tasks = new HashSet<>();
+    public final Map<String, Type> buckets = new HashMap<>();
+    public final Map<String, ConfigInfo> configs = new HashMap<>();
+
+    // declareConfig
+    public Registry declareConfig(String configName, Type type, Object defaultValue) {
+        if (configName == null) throw new NobException("Config name cannot be null");
+        if (type == null) throw new NobException("Config type cannot be null for '" + configName + "'");
+        if (Signatures.isForeign(configName)) {
+            throw new NobException("Cannot declare '" + configName + "': config names must not be plugin-prefixed (declare using the short name only)");
+        }
+        if (configs.containsKey(configName)) {
+            throw new NobException("Config '" + configName + "' is already declared for this plugin");
+        }
+        configs.put(configName, new ConfigInfo(type, defaultValue));
+        return this;
+    }
 
     public void registerTask(Class<? extends Task> taskType) {
         if (taskType == null) {
@@ -30,7 +45,7 @@ public class Registry {
         tasks.add(taskType);
     }
 
-    public void registerBucket(String bucketName, Type bucketType) {
+    public void createBucket(String bucketName, Type bucketType) {
         if (bucketName == null || bucketName.isEmpty()) {
             throw new NobException(
                 "Cannot register bucket: bucketName must not be null or empty.");
@@ -53,14 +68,5 @@ public class Registry {
 
         buckets.put(bucketName, bucketType);
     }
-
-    // config later
-
-    public Set<Class<? extends Task>> getTasks() {
-        return this.tasks;
-    }
-
-    public Map<String, Type> getBuckets() {
-        return this.buckets;
-    }
 }
+

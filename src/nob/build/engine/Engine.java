@@ -25,8 +25,9 @@ import java.util.stream.Collectors;
 public class Engine {
     // phase 1
     private final Map<PluginId, Set<Class<? extends Task>>> tasksDiscovered = new HashMap<>();
-    private final Map<PluginId, Map<String, Type>> bucketsProducedByPlugin = new HashMap<>();
-    private final Map<TaskId, Map<String, Type>> bucketsWrittenByTask = new HashMap<>();
+    private final Map<PluginId, Map<String, ConfigInfo>> configsDiscovered = new HashMap<>();
+    private final Map<PluginId, Map<String, Type>> bucketsDiscoveredFromPlugins = new HashMap<>();
+    private final Map<TaskId, Map<String, Type>> bucketsDiscoveredFromTasks = new HashMap<>();
 
     // phase 2 - commit
     // 2.1 - initialize tasks, register them.
@@ -34,10 +35,10 @@ public class Engine {
     // 2.3 - build deps edge (producerOf, consumerOf)
     // 2.4 - count degree & verify producers
     // 2.5 - check cycle
+    public final Map<PluginId, PluginMeta> pluginRegistry = new HashMap<>();
     public final Map<TaskId, TaskInfo> taskRegistry = new HashMap<>();
     public final Map<BucketId, BucketInfo> bucketRegistry = new HashMap<>(); 
-
-    private Map<PluginId, Plugin> pluginRegistry = new HashMap<>();
+    public final Map<ConfigId, ConfigInfo> configRegistry = new HashMap<>();
     
     public void registerPlugin(Plugin plugin) {
         PluginId pluginId = new PluginId(plugin.id());
@@ -45,31 +46,23 @@ public class Engine {
         if (pluginRegistry.containsKey(pluginId)) {
             throw new NobException("Plugin " + pluginId + " has already been registered");
         }
-        pluginRegistry.put(pluginId, plugin);
+
+        PluginMeta pluginMeta = PluginMeta.from(plugin);
+        pluginRegistry.put(pluginId, pluginMeta);
 
         Registry reg = new Registry();
         plugin.apply(reg);
 
-        tasksDiscovered.put(pluginId, reg.getTasks());
-        bucketsProducedByPlugin.put(pluginId, reg.getBuckets());
-    }
-
-    public void show() {
-        System.out.println("Tasks:");
-        taskRegistry.forEach((id, info) ->
-            System.out.println("  " + id + " -> " + info)
-        );
-
-        System.out.println("\nBuckets:");
-        bucketRegistry.forEach((id, info) ->
-            System.out.println("  " + id + " -> " + info)
-        );
+        tasksDiscovered.put(pluginId, reg.tasks);
+        bucketsDiscoveredFromPlugins.put(pluginId, reg.buckets);
+        configsDiscovered.put(pluginId, reg.configs);
     }
 
     // 2.1 - Instantiated Tasks, Registered it
-    // 2.2 - Find buckets declared, create it
+    // 2.2 - Find config and buckets declared, create them
     // 2.2.1 - Find buckets declared by plugins and create
     // 2.2.2 - Find buckets declared by tasks and create them
+    // 2.2.3 - Find default config declared by plugins and create them
     // 2.3 - Create edge list
     //      In Task Writes
     //      There are buckets it creates
@@ -91,15 +84,15 @@ public class Engine {
             for (Class<? extends Task> taskType: entry.getValue()) {
                 Task task = instantiate(taskType);
                 TaskId taskId = new TaskId(pluginId, task.id());
-                TaskInfo taskInfo = new TaskInfo(task, new HashSet<>(), new HashSet<>());
+                TaskInfo taskInfo = TaskInfo.from(task);
                 taskRegistry.put(taskId, taskInfo);
-                bucketsWrittenByTask.put(taskId, task.writes());
+                bucketsDiscoveredFromTasks.put(taskId, task.writes());
             }
         }
 
         // 2.2 - find produced buckets, create and register em
         // 2.2.1 - Process Buckets produced by plugins first
-        for (var entry: bucketsProducedByPlugin.entrySet()) {
+        for (var entry: bucketsDiscoveredFromPlugins.entrySet()) {
             PluginId pluginId = entry.getKey();
 
             for (var bucketEntry: entry.getValue().entrySet()) {
@@ -112,14 +105,12 @@ public class Engine {
                 }
 
                 Bucket bucket = new Bucket<>(bucketType);
-                Set<TaskId> writers = new HashSet<>();
-                Set<TaskId> readers = new HashSet<>();
-                bucketRegistry.put(bucketId, new BucketInfo(bucket, writers, readers));
+                bucketRegistry.put(bucketId, BucketInfo.from(bucket));
             }
         }
 
         // 2.2.2 - Process buckets produced by tasks
-        for (var entry: bucketsWrittenByTask.entrySet()) {
+        for (var entry: bucketsDiscoveredFromTasks.entrySet()) {
             TaskId taskId = entry.getKey();
             TaskInfo taskInfo = taskRegistry.get(taskId);
             PluginId pluginId = taskId.pluginId;
@@ -141,7 +132,19 @@ public class Engine {
                 }
 
                 Bucket bucket = new Bucket<>(bucketType);
-                bucketRegistry.put(bucketId, new BucketInfo(bucket, new HashSet<>(), new HashSet<>()));
+                bucketRegistry.put(bucketId, BucketInfo.from(bucket));
+            }
+        }
+
+        // 2.2.3 - Produce default configs 
+        for (var pluginEntry: configsDiscovered.entrySet()) {
+            PluginId pluginId = pluginEntry.getKey();
+
+            for (var entry: pluginEntry.getValue().entrySet()) {
+                String configName = entry.getKey(); // should be valid, checked at creation
+                ConfigInfo configInfo = entry.getValue();
+                ConfigId configId = new ConfigId(pluginId, configName);
+                configRegistry.put(configId, configInfo);
             }
         }
 
@@ -150,6 +153,7 @@ public class Engine {
             TaskInfo taskInfo = taskEntry.getValue();
             TaskId taskId = taskEntry.getKey();
             PluginId pluginId = taskId.pluginId;
+            PluginMeta pluginMeta = pluginRegistry.get(pluginId);
             Task task = taskInfo.task();
 
             // 2.3.1 - Build bucket <--> writer edgelist
@@ -167,14 +171,14 @@ public class Engine {
 
             // 2.3.2 - Build bucket <--> reader edgelist
             for (String rawBucketId: task.reads()) {
-                BucketId key = new BucketId(rawBucketId, null, null);
-                BucketInfo bucketInfo = bucketRegistry.get(key); // null null to avoid splitting, useless here since only bucketid is hashed
+                BucketId bucketId = new BucketId(rawBucketId);
+                BucketInfo bucketInfo = bucketRegistry.get(bucketId);
                 if (bucketInfo == null) {
                     // should add if the bucket was in populates or consumes
-                    throw new NobException("Bucket " + key + " wasn't produced by any plugin or task. Sussy");
+                    throw new NobException("Bucket " + bucketId + " wasn't produced by any plugin or task. Sussy!");
                 }
                 bucketInfo.readers().add(taskId);
-                taskInfo.reads().add(key);
+                taskInfo.reads().add(bucketId);
             }
         }
 
@@ -224,8 +228,6 @@ public class Engine {
                 "Cannot run task: provided taskID must not be null/empty/a proper foreign id");
         }
 
-        System.out.println("ere");
-
         TaskId currentTaskId = new TaskId(rawTaskId);
         TaskInfo curentTaskInfo = taskRegistry.get(currentTaskId);
 
@@ -241,7 +243,6 @@ public class Engine {
         Set<TaskId> visited = new HashSet<>();
         Deque<TaskId> stack = new ArrayDeque<>();
         stack.push(currentTaskId);
-        System.out.println("ere2");
 
         while (!stack.isEmpty()) {
             TaskId taskId = stack.poll();
@@ -263,16 +264,12 @@ public class Engine {
                 zeroDegreeTask.add(taskId);
             }
         }
-        System.out.println("ere3");
 
         if (zeroDegreeTask.isEmpty()) {
             throw new NobException("No tasks with degree=0 found. Somethings wrong.");
         }
         // stack should be cleared by now
         stack.addAll(zeroDegreeTask);
-
-        System.out.println("ere4");
-        System.out.println(stack);
 
         while (!stack.isEmpty()) {
             TaskId taskId = stack.pop();
@@ -322,5 +319,23 @@ public class Engine {
 }
 
 // info derived during phase 2
-record TaskInfo(Task task, Set<BucketId> writes, Set<BucketId> reads) {}
-record BucketInfo(Bucket bucket, Set<TaskId> writers, Set<TaskId> readers) {}
+
+// what does plugin reads means
+// it reads buckets, configs. we prob dont care about configs because its merged
+// it writes to buckets, writes configs. if it wants to write configs, it must be after the plugin that produces it. but the plugin runs first, its already produced. so we dont need to care about that. its already produced, just run it in the order of dependency made by tasks, and update
+record PluginMeta(Plugin plugin, Set<PluginId> dependsOn, Set<PluginId> dependedOnBy) {
+    public static PluginMeta from(Plugin plugin) {
+        return new PluginMeta(plugin, new HashSet<>(), new HashSet<>());
+    }
+}
+record TaskInfo(Task task, Set<BucketId> reads, Set<BucketId> writes) {
+    public static TaskInfo from(Task task) {
+        return new TaskInfo(task, new HashSet<>(), new HashSet<>());
+    }
+}
+record BucketInfo(Bucket bucket, Set<TaskId> readers, Set<TaskId> writers) {
+    public static BucketInfo from(Bucket bucket) {
+        return new BucketInfo(bucket, new HashSet<>(), new HashSet<>());
+    }
+}
+record ConfigInfo(Type type, Object value) {}
