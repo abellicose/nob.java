@@ -5,7 +5,7 @@
  * Notice: (C) Copyright 2026 By Osama. All Rights Reserved
  * ====================================== */
 
-package nob.api.task;
+package nob.api.type;
 
 import java.lang.reflect.Type;
 import java.lang.reflect.ParameterizedType;
