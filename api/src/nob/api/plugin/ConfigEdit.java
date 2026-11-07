@@ -7,9 +7,9 @@
 
 package nob.api.plugin;
 
-public interface ConfigEdit<T> {
-    public void replace(T value);
-    public void append(T value);
-    public void add(T value);
-    public void remove(T value);
+public interface ConfigEdit {
+    public void replace(Object value);
+    public void append(Object value);
+    public void add(Object value);
+    public void remove(Object value);
 }
